@@ -33,9 +33,11 @@ evolutionary_search:
     w_performance: 0.5
     w_complexity: 0.3
     w_noise_robustness: 0.2
-    # Complexity normalization: complexity = circuit_depth / max_possible_depth
+    # Complexity normalization: 0.5 * (depth / max_depth) + 0.5 * (two_qubit_gates / max_cx_gates)
+    max_depth: 50
+    max_cx_gates: 30
     # Performance: validation accuracy [0, 1]
-    # Noise robustness: 1 - (perf_ideal - perf_noisy) / perf_ideal  [0, 1]
+    # Noise robustness: 1.0 - max(0.0, (val_ideal - val_noisy) / max(val_ideal, 1e-4)) [0, 1]
 
   # Budget
   max_evaluations: 100  # Total candidate evaluations budget

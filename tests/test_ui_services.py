@@ -115,6 +115,20 @@ class TestSearchService:
         assert status_dict["status"] == "idle"
         assert status_dict["best_fitness"] == 0.0
 
+    def test_cancel_search_request(self):
+        SearchService._active_job = SearchJobState()
+        SearchService._active_job.status = "running"
+        SearchService.cancel_search()
+        assert SearchService._active_job._cancel_requested is True
+        assert SearchService._active_job.status == "cancelling"
+
+    def test_start_search_concurrency_guard(self):
+        SearchService._active_job = SearchJobState()
+        SearchService._active_job.status = "running"
+        started = SearchService.start_search(pop_size=2, generations=1)
+        assert started is False
+        SearchService._active_job.status = "idle"
+
 
 class TestNoiseService:
     def test_get_canonical_tiers(self):
@@ -163,6 +177,12 @@ class TestExperimentService:
         assert "exp_baseline_vqc_depth12" in exp_ids
         assert "exp_evolutionary_search_run1" in exp_ids
         assert "exp_noise_robustness_nisq" in exp_ids
+
+    def test_load_baseline_results(self):
+        baseline = ExperimentService.load_baseline_results()
+        assert "circuit_metadata" in baseline
+        assert baseline["circuit_metadata"]["circuit_depth"] > 0
+        assert "validation_metrics" in baseline
 
     def test_load_raw_experiment_file(self):
         experiments = ExperimentService.list_saved_experiments()

@@ -85,15 +85,15 @@ class SearchService:
     def is_running(cls) -> bool:
         """Return whether an evolutionary search is currently executing."""
         with cls._active_job.lock:
-            return cls._active_job.status == "running"
+            return cls._active_job.status in ("running", "cancelling")
 
     @classmethod
     def cancel_search(cls) -> None:
         """Request cooperative cancellation of the running search."""
         with cls._active_job.lock:
-            if cls._active_job.status == "running":
+            if cls._active_job.status in ("running", "cancelling"):
                 cls._active_job._cancel_requested = True
-                cls._active_job.status = "cancelled"
+                cls._active_job.status = "cancelling"
                 logger.info("Evolutionary search cancellation requested by user.")
 
     @classmethod
@@ -129,8 +129,12 @@ class SearchService:
         random_seed: int = 42,
     ) -> bool:
         """Launch background evolutionary architecture search."""
+        if cls._worker_thread is not None and cls._worker_thread.is_alive():
+            logger.warning("Attempted to start search while worker thread is still active.")
+            return False
+
         with cls._active_job.lock:
-            if cls._active_job.status == "running":
+            if cls._active_job.status in ("running", "cancelling"):
                 return False  # Already running
 
             cls._active_job = SearchJobState()
@@ -231,11 +235,60 @@ class SearchService:
 
                 total_time = time.perf_counter() - t0
                 with cls._active_job.lock:
-                    if not cls._active_job._cancel_requested:
-                        cls._active_job.status = "completed"
+                    if cls._active_job._cancel_requested:
+                        cls._active_job.status = "cancelled"
                         cls._active_job.elapsed_time_seconds = total_time
-                        if overall_best:
-                            cls._active_job.final_result = overall_best.to_dict()
+                        logger.info("Evolutionary search was cancelled gracefully.")
+                        return
+
+                    cls._active_job.status = "completed"
+                    cls._active_job.elapsed_time_seconds = total_time
+                    if overall_best:
+                        cls._active_job.final_result = overall_best.to_dict()
+
+                # Persist UI search results if successful and not cancelled
+                if overall_best is not None and generation_history:
+                    try:
+                        all_evals = [c for gen in generation_history for c in gen.candidates]
+                        search_result = EvolutionarySearchResult(
+                            best_candidate=overall_best,
+                            total_generations=len(generation_history),
+                            generation_history=generation_history,
+                            all_evaluated_candidates=all_evals,
+                            total_evaluations=len(all_evals),
+                            total_runtime_seconds=round(total_time, 2),
+                            hyperparameters={
+                                "population_size": pop_size,
+                                "max_generations": generations,
+                                "maxiter": maxiter,
+                                "w_performance": w_perf,
+                                "w_complexity": w_comp,
+                                "w_robustness": w_rob,
+                                "crossover_rate": crossover_rate,
+                                "mutation_rate": mutation_rate,
+                                "tournament_size": tournament_size,
+                                "random_seed": random_seed,
+                            },
+                        )
+                        hist_path = get_project_root() / "experiments" / "results" / "search_history.json"
+                        search_result.save(hist_path)
+
+                        best_arch_path = get_project_root() / "experiments" / "results" / "best_architecture.json"
+                        should_update = True
+                        if best_arch_path.exists():
+                            try:
+                                with open(best_arch_path, "r", encoding="utf-8") as f:
+                                    curr = json.load(f)
+                                if curr.get("fitness", 0) > overall_best.fitness:
+                                    should_update = False
+                            except Exception:
+                                pass
+                        if should_update:
+                            with open(best_arch_path, "w", encoding="utf-8") as f:
+                                json.dump(overall_best.to_dict(), f, indent=2)
+                        logger.info("Persisted UI search trajectory and best architecture successfully.")
+                    except Exception as pe:
+                        logger.warning("Could not persist UI search results: %s", pe)
 
             except Exception as e:
                 logger.error("Error in evolutionary search worker: %s", e)

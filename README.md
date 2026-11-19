@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![Qiskit](https://img.shields.io/badge/Qiskit-1.4.2-613394.svg)](https://qiskit.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing%20(89%2F89)-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing%20(132%2F132)-brightgreen.svg)](tests/)
 
 An end-to-end, research-grade quantum machine learning framework developed in Python and Qiskit that automates the discovery, optimization, and evaluation of **Variational Quantum Classifiers (VQCs)**.
 
@@ -14,7 +14,12 @@ The framework resolves the multi-objective trade-off between **predictive accura
 ## 1. Key Research Contributions
 
 1. **Automated Multi-Objective Architecture Search:** An evolutionary optimization engine that searches the discrete combinatorial space of ansatz layers, rotation gates, and entanglement topologies (linear, circular, pairwise, none) using a normalized fitness objective:
-   $$F(A) = 0.50 \cdot \text{Acc}_{\text{val}}(A) - 0.30 \cdot \text{Complexity}(A) + 0.20 \cdot \text{Robustness}(A)$$
+   $$F(A) = w_{\text{perf}} \cdot f_{\text{perf}}(A) - w_{\text{comp}} \cdot f_{\text{comp}}(A) + w_{\text{rob}} \cdot f_{\text{rob}}(A)$$
+   where:
+   $$f_{\text{perf}}(A) = \text{Acc}_{\text{val}}(A)$$
+   $$f_{\text{comp}}(A) = \frac{1}{2}\left(\frac{\text{depth}(A)}{50} + \frac{N_{2Q}(A)}{30}\right)$$
+   $$f_{\text{rob}}(A) = \max\left(0, 1 - \frac{\text{Acc}_{\text{val}}(A) - \text{Acc}_{\text{noisy}}(A)}{\text{Acc}_{\text{val}}(A)}\right)$$
+   with default weights $w_{\text{perf}} = 0.50$, $w_{\text{comp}} = 0.30$, and $w_{\text{rob}} = 0.20$.
 2. **Empirical Resource Reduction Without Accuracy Loss:** The search autonomously discovered a compact architecture (`arch_6327d7bcb8`) that reduces circuit depth by **58.3%** (from 12 to 5) and parameter count by **33.3%** (from 24 to 16) while achieving **96.00% test accuracy**, outperforming deeper fixed baselines.
 3. **Rigorous Hardware Noise Benchmarking:** Paired evaluation across ideal statevector simulation and realistic NISQ noise tiers (low, medium, and high depolarizing + readout error) using Qiskit Aer's density matrix backend.
 4. **Strict Methodological Discipline:** Zero data leakage (PCA and scaling fitted strictly on training data), standard scikit-learn compatible interfaces, and honest scientific reporting without unsubstantiated "quantum advantage" claims.
@@ -70,7 +75,7 @@ The framework resolves the multi-objective trade-off between **predictive accura
 
 ## 3. Empirical Benchmark Results
 
-Evaluated on Fashion-MNIST binary classification (Class 0: T-shirt vs Class 9: Ankle boot, 4 PCA features):
+Evaluated on Fashion-MNIST binary classification (Class 0: T-shirt vs Class 9: Ankle boot, 4 PCA features, 360-sample balanced partition: 200 train, 60 validation, 100 test):
 
 | Model Name | Category | Trainable Params | Circuit Depth | 2-Qubit Gates | Val Acc | Test Acc | Test F1 | Test ROC-AUC | Training Time | Latency / Sample |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -83,8 +88,9 @@ Evaluated on Fashion-MNIST binary classification (Class 0: T-shirt vs Class 9: A
 | **Search-Optimized VQC** | **Quantum Search** | **16** | **5** | **0** | **93.33%** | **96.00%** | **0.9600** | **0.9872** | **21.24s** | **3.13ms** |
 
 ### Key Benchmark Insights:
-- **Optimization Degradation in Deep Circuits:** The Fixed Deep VQC (depth 27, 40 parameters) dropped to 92.00% accuracy and took 51.74s to train due to barren plateaus and flatter cost landscapes.
-- **Search Efficiency:** The search-optimized model reached 96.00% test accuracy with only 16 parameters and depth 5, outperforming the standard baseline while requiring less simulator runtime.
+- **Optimization Degradation in Deeper Ansätze:** The Fixed Deep VQC (depth 27, 40 parameters) dropped to 92.00% accuracy and required 51.74s to train. This empirical degradation with circuit depth is consistent with trainability bottlenecks and overparameterization in variational quantum circuits; formal verification of barren plateaus requires explicit gradient variance scaling measurements across system sizes $\text{Var}_{\boldsymbol{\theta}}[\partial \mathcal{L}/\partial \theta_k] \in \mathcal{O}(2^{-n})$.
+- **Resource Optimization & Expressive Sufficiency (0 CX Gates):** The search-optimized model reached 96.00% test accuracy with only 16 parameters, depth 5, and 0 CX gates. Because the 4 input features are orthogonal PCA components, single-qubit rotations provide sufficient expressive capacity to separate classes 0 and 9 without incurring the 2-qubit gate noise penalty and depth overhead associated with entangling gates on NISQ hardware.
+- **Dataset Scale Scope (360 Samples):** Experiments evaluate a controlled 360-sample partition (200 train, 60 validation, 100 test). The 100% test accuracy achieved by classical Linear and RBF SVMs demonstrates that this 4D binary projection is linearly separable on this sample size, and should not be misinterpreted as 100% accuracy on full 10-class, 784-dimensional Fashion-MNIST or as quantum supremacy.
 
 ---
 

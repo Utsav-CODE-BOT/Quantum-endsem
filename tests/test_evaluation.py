@@ -107,3 +107,26 @@ class TestArchitectureEvaluator:
         assert res2.is_cached is True
         assert evaluator.cache_hits == 1
         assert res1.fitness == res2.fitness
+
+    def test_evaluator_active_noise_robustness(self, small_splits) -> None:
+        X_train, y_train, X_val, y_val = small_splits
+        evaluator = ArchitectureEvaluator(
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            maxiter=5,
+            evaluate_noise=True,
+            enable_cache=False,
+        )
+        config = ArchitectureConfig(
+            num_qubits=4,
+            num_layers=1,
+            rotation_gates=("ry",),
+            entanglement_type="linear",
+        )
+        res = evaluator.evaluate(config)
+        assert res.success is True
+        assert res.noisy_val_metrics is not None
+        assert 0.0 <= res.noisy_val_metrics.accuracy <= 1.0
+        assert 0.0 <= res.fitness_breakdown.robustness_score <= 1.0

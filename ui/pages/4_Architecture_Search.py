@@ -55,6 +55,12 @@ with col_left:
     generations = st.number_input("Generations", min_value=1, max_value=4, value=2, step=1, help="Maximum evolutionary iterations.")
     maxiter = st.number_input("COBYLA Iterations", min_value=10, max_value=50, value=25, step=5, help="Classical optimization iterations per candidate.")
 
+    st.caption(
+        "💡 *Note:* Population $\\le 8$ and Generations $\\le 4$ are UI interactive safety bounds designed to maintain responsive browser execution "
+        "on standard development workstations. For arbitrary population sizes, generations, or high-throughput batch experiments, "
+        "use the headless CLI script: `python scripts/run_architecture_search.py`."
+    )
+
     st.markdown("**Fitness Objective Weights**")
     w_perf = st.slider("Performance Weight (w_perf)", 0.0, 1.0, 0.50, 0.05, help="Weight given to validation classification accuracy.")
     w_comp = st.slider("Complexity Weight (w_comp)", 0.0, 1.0, 0.30, 0.05, help="Penalty weight on circuit depth and gate count.")
@@ -111,8 +117,10 @@ with col_right:
     status = SearchService.get_status()
 
     # If running or just completed, show live status
-    if status["status"] == "running":
+    if status["status"] in ("running", "cancelling"):
         st.subheader("📡 Live Search Telemetry")
+        if status["status"] == "cancelling":
+            st.warning("⚠️ Cancellation requested. Finishing current candidate before terminating gracefully...")
         current_g = status["current_generation"]
         total_g = status["total_generations"]
         progress_val = min(1.0, max(0.0, current_g / max(1, total_g)))

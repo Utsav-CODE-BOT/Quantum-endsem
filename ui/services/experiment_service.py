@@ -90,6 +90,12 @@ class ExperimentService:
         if noise_file.exists():
             data = json.load(open(noise_file, encoding="utf-8"))
             mtime = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(noise_file.stat().st_mtime))
+            opt_metrics = data.get("optimized_architecture", {}).get("test_metrics", {})
+            test_acc = opt_metrics.get("accuracy")
+            if test_acc is None:
+                benchmarks_list = data.get("benchmarks", {}).get("optimized", [])
+                if benchmarks_list:
+                    test_acc = benchmarks_list[0].get("ideal_metrics", {}).get("accuracy")
             experiments.append({
                 "experiment_id": "exp_noise_robustness_nisq",
                 "title": "Hardware Noise Robustness (Low, Med, High)",
@@ -97,7 +103,7 @@ class ExperimentService:
                 "timestamp": mtime,
                 "file_path": str(noise_file),
                 "val_accuracy": None,
-                "test_accuracy": 0.95,
+                "test_accuracy": test_acc,
                 "circuit_depth": None,
                 "parameters": None,
                 "runtime_seconds": None,
@@ -105,6 +111,15 @@ class ExperimentService:
             })
 
         return experiments
+
+    @classmethod
+    def load_baseline_results(cls) -> dict[str, Any]:
+        """Load baseline VQC results from disk."""
+        base_file = cls.get_results_dir() / "baseline_vqc_results.json"
+        if not base_file.exists():
+            return {}
+        with open(base_file, "r", encoding="utf-8") as f:
+            return json.load(f)
 
     @classmethod
     def load_raw_experiment_file(cls, path_str: str) -> dict[str, Any]:

@@ -14,6 +14,7 @@ from src.evaluation.classification_metrics import (
     compute_classification_metrics,
 )
 from src.evaluation.fitness import FitnessBreakdown, FitnessCalculator
+from src.evaluation.noise_evaluator import NoiseEvaluator, NoiseModelConfig
 from src.quantum.architecture_schema import ArchitectureConfig
 from src.quantum.circuit_generator import CircuitMetadata
 from src.quantum.vqc_model import ConfigurableVQC
@@ -32,6 +33,7 @@ class CandidateEvaluationResult:
     val_metrics: ClassificationReport
     train_metrics: ClassificationReport | None = None
     test_metrics: ClassificationReport | None = None
+    noisy_val_metrics: ClassificationReport | None = None
     fitness_breakdown: FitnessBreakdown | None = None
     fitness: float = 0.0
     training_time_seconds: float = 0.0
@@ -49,6 +51,7 @@ class CandidateEvaluationResult:
             "val_metrics": self.val_metrics.to_dict(),
             "train_metrics": self.train_metrics.to_dict() if self.train_metrics else None,
             "test_metrics": self.test_metrics.to_dict() if self.test_metrics else None,
+            "noisy_val_metrics": self.noisy_val_metrics.to_dict() if self.noisy_val_metrics else None,
             "fitness": self.fitness,
             "fitness_breakdown": self.fitness_breakdown.to_dict() if self.fitness_breakdown else None,
             "training_time_seconds": self.training_time_seconds,
@@ -73,6 +76,8 @@ class ArchitectureEvaluator:
         optimizer_name: str = "cobyla",
         training_seed: int = 42,
         enable_cache: bool = True,
+        noise_config: NoiseModelConfig | None = None,
+        evaluate_noise: bool = True,
     ) -> None:
         """Initialize evaluator.
 
@@ -86,6 +91,8 @@ class ArchitectureEvaluator:
             optimizer_name: Classical optimizer name.
             training_seed: Seed for weight initialization.
             enable_cache: Whether to cache evaluation results.
+            noise_config: Noise model parameters for validation robustness scoring.
+            evaluate_noise: Whether to evaluate noise robustness on validation data.
         """
         self.X_train = np.asarray(X_train, dtype=float)
         self.y_train = np.asarray(y_train, dtype=int)
@@ -98,6 +105,15 @@ class ArchitectureEvaluator:
         self.training_seed = training_seed
         self.enable_cache = enable_cache
 
+        self.noise_config = noise_config or NoiseModelConfig(
+            name="val_nisq_noise",
+            single_qubit_error=0.001,
+            two_qubit_error=0.01,
+            measurement_error=0.015,
+            shots=512,
+        )
+        self.evaluate_noise = evaluate_noise
+
         # Cache mapping unique evaluation key -> CandidateEvaluationResult
         self.cache: dict[str, CandidateEvaluationResult] = {}
         self.total_evaluations = 0
@@ -105,14 +121,17 @@ class ArchitectureEvaluator:
 
     def _generate_cache_key(self, config: ArchitectureConfig) -> str:
         """Create cache key accounting for architecture and training conditions."""
-        key_str = f"{config.arch_id}:opt={self.optimizer_name}:iter={self.maxiter}:seed={self.training_seed}:N={len(self.X_train)}"
+        key_str = (
+            f"{config.arch_id}:opt={self.optimizer_name}:iter={self.maxiter}:"
+            f"seed={self.training_seed}:N={len(self.X_train)}:noise={self.evaluate_noise}"
+        )
         return hashlib.sha256(key_str.encode()).hexdigest()[:16]
 
     def evaluate(self, config: ArchitectureConfig) -> CandidateEvaluationResult:
         """Train and evaluate a single architecture candidate on validation data.
 
         Strict Scientific Protocol:
-        - Candidate selection is driven entirely by validation metrics.
+        - Candidate selection is driven entirely by validation metrics (accuracy + noise robustness).
         - Test data is NEVER used or exposed during architecture evaluation.
 
         Args:
@@ -133,6 +152,7 @@ class ArchitectureEvaluator:
                 circuit_metadata=cached.circuit_metadata,
                 val_metrics=cached.val_metrics,
                 train_metrics=cached.train_metrics,
+                noisy_val_metrics=cached.noisy_val_metrics,
                 fitness_breakdown=cached.fitness_breakdown,
                 fitness=cached.fitness,
                 training_time_seconds=cached.training_time_seconds,
@@ -164,16 +184,35 @@ class ArchitectureEvaluator:
             t_trained = time.perf_counter()
             train_time = t_trained - t_start
 
-            # 3. Evaluate on validation partition
+            # 3. Evaluate on validation partition (Ideal)
             val_preds = vqc.predict(self.X_val)
             val_probs = vqc.predict_proba(self.X_val)
             val_metrics = compute_classification_metrics(self.y_val, val_preds, val_probs)
             t_eval = time.perf_counter() - t_trained
 
-            # 4. Compute multi-objective fitness
+            # 4. Evaluate under simulated NISQ noise on validation partition (3rd Objective)
+            noisy_val_metrics = None
+            noisy_val_accuracy = None
+            if self.evaluate_noise:
+                try:
+                    noise_evaluator = NoiseEvaluator(seed=self.training_seed)
+                    noise_report = noise_evaluator.evaluate(
+                        vqc=vqc,
+                        X_test=self.X_val,
+                        y_test=self.y_val,
+                        noise_config=self.noise_config,
+                    )
+                    noisy_val_metrics = noise_report.noisy_metrics
+                    noisy_val_accuracy = noise_report.noisy_metrics.accuracy
+                except Exception as ex:
+                    logger.warning("Noise evaluation fallback for %s: %s", config.arch_id, ex)
+                    noisy_val_accuracy = None
+
+            # 5. Compute multi-objective fitness with active noise robustness
             fitness_breakdown = self.fitness_calculator.evaluate(
                 val_accuracy=val_metrics.accuracy,
                 metadata=vqc.metadata,
+                noisy_accuracy=noisy_val_accuracy,
             )
 
             result = CandidateEvaluationResult(
@@ -181,6 +220,7 @@ class ArchitectureEvaluator:
                 config=config,
                 circuit_metadata=vqc.metadata,
                 val_metrics=val_metrics,
+                noisy_val_metrics=noisy_val_metrics,
                 fitness_breakdown=fitness_breakdown,
                 fitness=fitness_breakdown.scalar_fitness,
                 training_time_seconds=round(train_time, 2),

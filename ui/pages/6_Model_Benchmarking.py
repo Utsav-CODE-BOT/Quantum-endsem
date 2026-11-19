@@ -118,16 +118,28 @@ else:
             )
             st.plotly_chart(fig_comp, use_container_width=True)
 
-    # 3. Barren Plateau / Depth Degradation Analysis
+    # 3. Depth Degradation & Trainability Analysis
     st.markdown("---")
     st.subheader("📉 Circuit Depth vs Trainability Trade-off")
 
     st.markdown(
         """
-        Observing the quantum baselines demonstrates the **barren plateau phenomenon**:
-        - **Fixed Shallow VQC (Depth 6, 8 params):** 99.00% accuracy, fast training (16.43s).
-        - **Fixed Standard VQC (Depth 12, 24 params):** 95.00% accuracy, moderate training (30.49s).
-        - **Fixed Deep VQC (Depth 27, 40 params):** Degraded to **92.00% accuracy** and took **51.74s** to train.
-        - **Search-Optimized VQC (Depth 5, 16 params):** Reached **96.00% accuracy** with 0 CX gates in 21.24s.
+        Observing the empirical performance across varying quantum circuit depths illustrates the depth-dependent trainability bottleneck:
         """
+    )
+    q_models = [r for r in records if "VQC" in r.get("model_name", "")]
+    for qm in q_models:
+        name = qm.get("model_name", "VQC")
+        depth = qm.get("circuit_depth", "N/A")
+        params = qm.get("parameters", "N/A")
+        acc = format_percentage(qm.get("test_accuracy")) if qm.get("test_accuracy") is not None else "N/A"
+        runtime = format_time(qm.get("training_time_seconds")) if qm.get("training_time_seconds") is not None else "N/A"
+        st.markdown(f"- **{name} (Depth {depth}, {params} params):** Reached **{acc} accuracy** in {runtime}.")
+
+    st.info(
+        "**Theoretical Note on Trainability & Barren Plateaus:** "
+        "The empirical performance drop observed at deeper ansatz layers is consistent with trainability bottlenecks "
+        "and overparameterization in variational circuits. In general variational quantum circuits, deep unstructured ansätze "
+        "exhibit exponentially vanishing gradient variance (barren plateaus), $\\mathrm{Var}_\\theta[\\partial \\mathcal{L}/\\partial \\theta_k] \\in \\mathcal{O}(2^{-n})$. "
+        "However, for this 4-qubit configuration, formal proof of barren plateaus requires explicit gradient variance scaling measurements across system size $n$."
     )

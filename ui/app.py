@@ -17,6 +17,9 @@ from ui.components.sidebar import render_sidebar
 from ui.services.benchmark_service import BenchmarkService
 from ui.services.dataset_service import DatasetService
 from ui.services.experiment_service import ExperimentService
+from ui.services.noise_service import NoiseService
+from ui.services.search_service import SearchService
+from ui.utils.formatting import format_percentage
 from ui.utils.state import init_session_state
 
 st.set_page_config(
@@ -61,39 +64,88 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# System Health & Research Highlights
-b_svc = BenchmarkService()
-exp_svc = ExperimentService()
-ds_svc = DatasetService()
+# System Health & Research Highlights (Authoritative Dynamic Loading)
+best_arch = SearchService.load_saved_best_architecture()
+noise_data = NoiseService.load_saved_results()
+base_path = ExperimentService.get_results_dir() / "baseline_vqc_results.json"
+base_exp = ExperimentService.load_raw_experiment_file(str(base_path)) if base_path.exists() else {}
+
+# 1. Test Accuracy
+opt_test_acc = best_arch.get("test_metrics", {}).get("accuracy")
+base_test_acc = base_exp.get("test_metrics", {}).get("accuracy")
+if opt_test_acc is not None:
+    val_acc_str = format_percentage(opt_test_acc)
+    delta_acc = f"Baseline: {format_percentage(base_test_acc)}" if base_test_acc is not None else "Discovered"
+else:
+    val_acc_str = "N/A"
+    delta_acc = "Run pipeline to populate"
+
+# 2. Circuit Depth Reduction
+opt_depth = best_arch.get("circuit_metadata", {}).get("circuit_depth")
+base_depth = base_exp.get("circuit_metadata", {}).get("circuit_depth")
+if opt_depth is not None and base_depth is not None and base_depth > 0:
+    red_pct = ((base_depth - opt_depth) / base_depth) * 100
+    val_depth_str = f"-{red_pct:.1f}%"
+    delta_depth = f"{base_depth} → {opt_depth} circuit depth"
+elif opt_depth is not None:
+    val_depth_str = f"Depth {opt_depth}"
+    delta_depth = "Optimized candidate"
+else:
+    val_depth_str = "N/A"
+    delta_depth = "Run pipeline to populate"
+
+# 3. Two-Qubit CX/CZ Gates
+opt_2q = best_arch.get("circuit_metadata", {}).get("two_qubit_gates")
+if opt_2q is not None:
+    val_2q_str = f"{opt_2q} Gates"
+    delta_2q = "Zero 2-qubit noise penalty" if opt_2q == 0 else f"{opt_2q} entangling gates"
+else:
+    val_2q_str = "N/A"
+    delta_2q = "Run pipeline to populate"
+
+# 4. Noise Robustness (High Noise Retention)
+high_noise_retention = None
+if "benchmarks" in noise_data and "optimized" in noise_data["benchmarks"]:
+    for b in noise_data["benchmarks"]["optimized"]:
+        if b.get("noise_config", {}).get("name") == "High_Noise":
+            high_noise_retention = b.get("relative_accuracy_retention")
+            break
+
+if high_noise_retention is not None:
+    val_noise_str = format_percentage(high_noise_retention)
+    delta_noise = "Retention under High NISQ Noise"
+else:
+    val_noise_str = "N/A"
+    delta_noise = "No noise benchmark run"
 
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     render_metric_card(
         title="Optimized Test Acc",
-        value="95.0%",
-        delta="Parity with baseline (95.0%)",
+        value=val_acc_str,
+        delta=delta_acc,
         icon="🎯",
     )
 with col2:
     render_metric_card(
         title="Circuit Depth Reduction",
-        value="-58.3%",
-        delta="12 → 5 circuit depth",
+        value=val_depth_str,
+        delta=delta_depth,
         icon="📉",
     )
 with col3:
     render_metric_card(
         title="CX Entanglement Gates",
-        value="0 Gates",
-        delta="Eliminated 100% two-qubit gates",
+        value=val_2q_str,
+        delta=delta_2q,
         icon="🛡️",
     )
 with col4:
     render_metric_card(
         title="NISQ Noise Robustness",
-        value="95.0%",
-        delta="Zero degradation under High Noise",
+        value=val_noise_str,
+        delta=delta_noise,
         icon="⚡",
     )
 

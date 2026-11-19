@@ -77,45 +77,149 @@ search_hist = SearchService.load_saved_history()
 benchmarks = BenchmarkService.load_benchmark_data()
 noise_data = NoiseService.load_saved_results()
 experiments = ExperimentService.list_saved_experiments()
+baseline_data = ExperimentService.load_baseline_results()
 
 # Extract real metrics
+base_depth = baseline_data.get("circuit_metadata", {}).get("circuit_depth")
+base_params = baseline_data.get("circuit_metadata", {}).get("num_trainable_parameters")
+base_test_acc = baseline_data.get("test_metrics", {}).get("accuracy")
+base_cx = baseline_data.get("circuit_metadata", {}).get("two_qubit_gates")
+
 best_val_acc = best_arch.get("val_metrics", {}).get("accuracy")
 best_test_acc = best_arch.get("test_metrics", {}).get("accuracy")
 best_depth = best_arch.get("circuit_metadata", {}).get("circuit_depth")
 best_params = best_arch.get("circuit_metadata", {}).get("num_trainable_parameters")
+best_cx = best_arch.get("circuit_metadata", {}).get("two_qubit_gates")
 best_fitness = best_arch.get("fitness")
+
+# Format accuracy card
+if best_test_acc is not None:
+    acc_val = format_percentage(best_test_acc)
+    if base_test_acc is not None:
+        if best_test_acc >= base_test_acc:
+            acc_delta = f"Matched/Exceeded baseline ({format_percentage(base_test_acc)})"
+            acc_delta_type = "positive"
+        else:
+            diff = (best_test_acc - base_test_acc) * 100
+            acc_delta = f"{diff:.1f}% vs baseline ({format_percentage(base_test_acc)})"
+            acc_delta_type = "negative"
+    else:
+        acc_delta = "Held-out test set"
+        acc_delta_type = "neutral"
+else:
+    acc_val = "N/A"
+    acc_delta = "No search result available"
+    acc_delta_type = "neutral"
+
+# Format depth card
+if best_depth is not None:
+    depth_val = str(best_depth)
+    if base_depth is not None and base_depth > 0:
+        depth_pct = ((base_depth - best_depth) / base_depth) * 100
+        depth_delta = f"-{depth_pct:.1f}% vs Baseline (Depth {base_depth})"
+        depth_delta_type = "positive" if depth_pct >= 0 else "negative"
+    else:
+        depth_delta = "Search candidate depth"
+        depth_delta_type = "neutral"
+else:
+    depth_val = "N/A"
+    depth_delta = "No search result available"
+    depth_delta_type = "neutral"
+
+# Format parameters card
+if best_params is not None:
+    param_val = str(best_params)
+    if base_params is not None and base_params > 0:
+        param_pct = ((base_params - best_params) / base_params) * 100
+        param_delta = f"-{param_pct:.1f}% vs Baseline ({base_params} params)"
+        param_delta_type = "positive" if param_pct >= 0 else "negative"
+    else:
+        param_delta = "Trainable parameters"
+        param_delta_type = "neutral"
+else:
+    param_val = "N/A"
+    param_delta = "No search result available"
+    param_delta_type = "neutral"
+
+# Format CX gates card
+if best_cx is not None:
+    cx_val = str(best_cx)
+    if base_cx is not None:
+        if base_cx > 0 and best_cx == 0:
+            cx_delta = f"-100% CX overhead ({base_cx} -> 0)"
+            cx_delta_type = "positive"
+        elif base_cx > 0:
+            diff = base_cx - best_cx
+            cx_delta = f"{diff:+d} CX gates vs Baseline ({base_cx})"
+            cx_delta_type = "positive" if diff > 0 else "neutral"
+        else:
+            cx_delta = f"{best_cx} CX gates"
+            cx_delta_type = "neutral"
+    else:
+        cx_delta = f"{best_cx} 2-qubit entangling gates"
+        cx_delta_type = "neutral"
+else:
+    cx_val = "N/A"
+    cx_delta = "No search result available"
+    cx_delta_type = "neutral"
 
 # Row 1: KPI Cards
 cards_row_1 = [
     {
         "title": "Best Discovered Test Accuracy",
-        "value": format_percentage(best_test_acc) if best_test_acc else "96.00%",
-        "delta": "Matched/Exceeded baseline (95.00%)",
-        "delta_type": "positive",
+        "value": acc_val,
+        "delta": acc_delta,
+        "delta_type": acc_delta_type,
     },
     {
         "title": "Optimized Circuit Depth",
-        "value": str(best_depth) if best_depth else "5",
-        "delta": "-58.3% vs Baseline (Depth 12)",
-        "delta_type": "positive",
+        "value": depth_val,
+        "delta": depth_delta,
+        "delta_type": depth_delta_type,
     },
     {
         "title": "Trainable Parameters",
-        "value": str(best_params) if best_params else "16",
-        "delta": "-33.3% vs Baseline (24 params)",
-        "delta_type": "positive",
+        "value": param_val,
+        "delta": param_delta,
+        "delta_type": param_delta_type,
     },
     {
         "title": "Two-Qubit (CX) Gates",
-        "value": "0",
-        "delta": "-100% CX overhead",
-        "delta_type": "positive",
+        "value": cx_val,
+        "delta": cx_delta,
+        "delta_type": cx_delta_type,
     },
 ]
 
 render_kpi_grid_row(cards_row_1)
 
 # Row 2: Secondary KPIs
+if best_fitness is not None:
+    fit_val = f"{best_fitness:.4f}"
+    fit_delta = "50% Acc, 30% Comp, 20% Rob"
+    fit_delta_type = "positive"
+else:
+    fit_val = "N/A"
+    fit_delta = "No search evaluated"
+    fit_delta_type = "neutral"
+
+# High noise retention
+high_noise_retention = None
+if noise_data:
+    for b in noise_data.get("benchmarks", {}).get("optimized", []):
+        if b.get("noise_config", {}).get("name") == "High_Noise":
+            high_noise_retention = b.get("relative_accuracy_retention")
+            break
+
+if high_noise_retention is not None:
+    ret_val = f"{high_noise_retention * 100:.2f}%"
+    ret_delta = "Aer density matrix (1024 shots)"
+    ret_delta_type = "positive"
+else:
+    ret_val = "N/A"
+    ret_delta = "No noise simulation on file"
+    ret_delta_type = "neutral"
+
 cards_row_2 = [
     {
         "title": "Active Qubit Count",
@@ -125,15 +229,15 @@ cards_row_2 = [
     },
     {
         "title": "Best Multi-Objective Fitness",
-        "value": f"{best_fitness:.4f}" if best_fitness else "0.6433",
-        "delta": "50% Acc, 30% Comp, 20% Rob",
-        "delta_type": "positive",
+        "value": fit_val,
+        "delta": fit_delta,
+        "delta_type": fit_delta_type,
     },
     {
         "title": "High Noise Retention",
-        "value": "94.79%",
-        "delta": "Aer density matrix (1024 shots)",
-        "delta_type": "positive",
+        "value": ret_val,
+        "delta": ret_delta,
+        "delta_type": ret_delta_type,
     },
     {
         "title": "Completed Experiments",
@@ -197,9 +301,13 @@ with col_chart4:
         for r in bench_records
         if r.get("circuit_depth") is not None
     ]
+    base_val_acc = baseline_data.get("validation_metrics", {}).get("accuracy", 0.983)
     fig_pareto = create_pareto_scatter(
         candidates=candidates,
-        baseline={"circuit_depth": 12, "val_accuracy": 0.983},
+        baseline={
+            "circuit_depth": base_depth if base_depth is not None else 12,
+            "val_accuracy": base_val_acc if base_val_acc is not None else 0.983,
+        },
         optimized=best_arch,
     )
     st.plotly_chart(fig_pareto, use_container_width=True)

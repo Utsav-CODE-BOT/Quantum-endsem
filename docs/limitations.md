@@ -22,7 +22,7 @@ where $P$ is population size, $G$ is generations, $I$ is optimizer iterations, $
 Variational Quantum Algorithms are fundamentally constrained by the **barren plateau phenomenon** (McClean et al., 2018; Cerezo et al., 2021):
 - For randomly initialized, deep, highly entangled circuits, the variance of cost function gradients vanishes exponentially with qubit count:
   $$\text{Var}_{\boldsymbol{\theta}} \left[ \frac{\partial \mathcal{L}}{\partial \theta_k} \right] \in \mathcal{O}\left(\frac{1}{2^n}\right)$$
-- In our empirical benchmarks, the Fixed Deep VQC (depth 27, 40 parameters) exhibited degraded test accuracy (92.00%) compared to the shallow (99.00%) and optimized (96.00%) architectures. This empirically confirms that adding variational layers does not monotonically improve classification capacity, and often flattens the optimization landscape.
+- In our empirical benchmarks, the Fixed Deep VQC (depth 27, 40 parameters) exhibited degraded test accuracy (92.00%) compared to the shallow (99.00%) and optimized (96.00%) architectures. While this empirical degradation with increasing circuit depth is consistent with trainability bottlenecks and landscape flattening characteristic of overparameterized variational circuits, we emphasize that formal mathematical confirmation of barren plateaus requires explicit gradient variance scaling measurements across varying system sizes $n$, rather than solely observing terminal classification metrics on a fixed 4-qubit circuit.
 
 ---
 
@@ -48,3 +48,21 @@ This project makes **no claim of quantum advantage** over classical machine lear
 2. **Research Contribution:** The genuine research contribution of this work is **automated resource-aware quantum software engineering**:
    - Manually designing quantum ansatz circuits is inefficient and error-prone.
    - This framework demonstrates that an automated multi-objective evolutionary search engine can autonomously discover compact circuit topologies that cut quantum depth by **58.3%** and parameter count by **33.3%** without sacrificing classification accuracy, making them substantially more viable for deployment on error-prone NISQ devices.
+
+---
+
+## 5. Dataset Subsetting & Subproblem Scale (360 Samples)
+
+The empirical validation was conducted on a controlled 360-sample partition:
+- **Partition:** 200 training samples, 60 validation samples, and 100 test samples.
+- **Task Scope:** Binary classification between Class 0 (T-shirt/top) and Class 9 (Ankle boot), compressed from 784 pixels to 4 orthogonal PCA components.
+- **Interpretation Boundary:** The 100.00% test accuracy of classical SVMs is an artifact of this linearly separable 4D binary projection on this sample size. It must not be extrapolated as 100% accuracy on the full 70,000-image, 10-class Fashion-MNIST benchmark. Scaling to higher dimensional representations and multi-class tasks remains future work.
+
+---
+
+## 6. Analysis of Zero Entangling (CX) Gates in the Optimal Architecture
+
+The evolutionary optimizer converged on an architecture (`arch_6327d7bcb8` / `arch_b137878901`) with 0 two-qubit entangling gates ($CX=0$):
+- **Expressive Sufficiency:** Because the 4 input features are orthogonal principal components derived from distinctly different visual classes (clothing top vs footwear), single-qubit rotation gates ($R_x, R_y$) on separable product states possess sufficient parameter flexibility to form an accurate decision boundary.
+- **Multi-Objective Trade-off:** The fitness function explicitly penalizes two-qubit gate count ($N_{2Q}/30$) and noise degradation ($f_{\text{rob}}$). Adding CX gates would increase depth and expose the circuit to two-qubit gate noise without providing marginal classification gain on this specific task.
+- **Implication:** The optimizer correctly behaved in a resource-aware manner by eliminating unneeded entangling overhead, reflecting realistic NISQ design principles where two-qubit gates are the costliest physical operations.

@@ -100,3 +100,27 @@ def test_noise_evaluator_runs_and_reports(trained_dummy_vqc: ConfigurableVQC, du
     assert "ideal_metrics" in report_dict
     assert "noisy_metrics" in report_dict
     assert "relative_accuracy_retention" in report_dict
+
+
+def test_vqc_noise_evaluation_consistency(trained_dummy_vqc: ConfigurableVQC, dummy_data: tuple[np.ndarray, np.ndarray]):
+    """Verify consistency, probability normalization, and retention metrics across multiple noise levels."""
+    X, y = dummy_data
+    X_val, y_val = X[10:], y[10:]
+    evaluator = NoiseEvaluator(seed=42)
+
+    tiers = [
+        NoiseModelConfig(name="low", single_qubit_error=0.0005, two_qubit_error=0.005, measurement_error=0.005, shots=256),
+        NoiseModelConfig(name="high", single_qubit_error=0.005, two_qubit_error=0.03, measurement_error=0.03, shots=256),
+    ]
+
+    for tier in tiers:
+        report = evaluator.evaluate(trained_dummy_vqc, X_val, y_val, tier)
+        assert report.ideal_metrics.num_samples == len(y_val)
+        assert report.noisy_metrics.num_samples == len(y_val)
+        assert 0.0 <= report.noisy_metrics.accuracy <= 1.0
+        assert report.relative_accuracy_retention >= 0.0
+        assert 0.0 <= report.noise_sensitivity_index <= 1.5
+        # Verify confusion matrix consistency
+        cm = np.array(report.noisy_metrics.confusion_matrix)
+        assert cm.shape == (2, 2)
+        assert cm.sum() == len(y_val)
