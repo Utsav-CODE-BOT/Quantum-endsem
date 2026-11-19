@@ -98,6 +98,21 @@ DOCUMENTS = {
         "description": "Python virtual environment setup, pinned dependency installation, and verification commands.",
         "icon": "⚙️",
     },
+    "Architecture Decisions Log": {
+        "path": workspace_root / "docs" / "ARCHITECTURE_DECISIONS.md",
+        "description": "Chronological decision records (ADR 001 - 015) for technology stack, quantum primitives, and fitness weights.",
+        "icon": "📑",
+    },
+    "Development Progress Tracker": {
+        "path": workspace_root / "docs" / "DEVELOPMENT_PROGRESS.md",
+        "description": "Milestone-by-milestone progress, empirical benchmark log, and phase completion checklist across all 13 phases.",
+        "icon": "📈",
+    },
+    "Phase 0 Technical Assessment": {
+        "path": workspace_root / "docs" / "PHASE_0_TECHNICAL_ASSESSMENT.md",
+        "description": "Comprehensive initial feasibility assessment, resource budgets, risk mitigation, and mathematical roadmap.",
+        "icon": "📋",
+    },
 }
 
 # Layout: Document Selector & Content
