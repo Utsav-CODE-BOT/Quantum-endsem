@@ -1,0 +1,323 @@
+{
+  "dataset": "Fashion-MNIST (0: T-shirt vs 9: Ankle Boot)",
+  "features": 4,
+  "test_samples": 100,
+  "baseline_architecture": {
+    "num_layers": 2,
+    "depth": 12,
+    "total_gates": 34,
+    "num_parameters": 24
+  },
+  "optimized_architecture": {
+    "num_layers": 1,
+    "depth": 5,
+    "total_gates": 20,
+    "num_parameters": 16
+  },
+  "benchmarks": {
+    "baseline": [
+      {
+        "arch_id": "baseline_vqc_depth12",
+        "noise_config": {
+          "name": "Low_Noise",
+          "single_qubit_error": 0.0005,
+          "two_qubit_error": 0.005,
+          "measurement_error": 0.005,
+          "shots": 1024
+        },
+        "ideal_metrics": {
+          "accuracy": 0.95,
+          "precision_macro": 0.9545454545454546,
+          "recall_macro": 0.95,
+          "f1_macro": 0.949874686716792,
+          "confusion_matrix": [
+            [
+              50,
+              0
+            ],
+            [
+              5,
+              45
+            ]
+          ],
+          "roc_auc": 0.9984,
+          "num_samples": 100
+        },
+        "noisy_metrics": {
+          "accuracy": 0.93,
+          "precision_macro": 0.9385964912280702,
+          "recall_macro": 0.9299999999999999,
+          "f1_macro": 0.9296553110240177,
+          "confusion_matrix": [
+            [
+              50,
+              0
+            ],
+            [
+              7,
+              43
+            ]
+          ],
+          "roc_auc": 0.9984,
+          "num_samples": 100
+        },
+        "accuracy_drop": 0.02,
+        "f1_drop": 0.0202,
+        "relative_accuracy_retention": 0.9789,
+        "noise_sensitivity_index": 0.0211
+      },
+      {
+        "arch_id": "baseline_vqc_depth12",
+        "noise_config": {
+          "name": "Medium_Noise",
+          "single_qubit_error": 0.001,
+          "two_qubit_error": 0.01,
+          "measurement_error": 0.015,
+          "shots": 1024
+        },
+        "ideal_metrics": {
+          "accuracy": 0.95,
+          "precision_macro": 0.9545454545454546,
+          "recall_macro": 0.95,
+          "f1_macro": 0.949874686716792,
+          "confusion_matrix": [
+            [
+              50,
+              0
+            ],
+            [
+              5,
+              45
+            ]
+          ],
+          "roc_auc": 0.9984,
+          "num_samples": 100
+        },
+        "noisy_metrics": {
+          "accuracy": 0.95,
+          "precision_macro": 0.9545454545454546,
+          "recall_macro": 0.95,
+          "f1_macro": 0.949874686716792,
+          "confusion_matrix": [
+            [
+              50,
+              0
+            ],
+            [
+              5,
+              45
+            ]
+          ],
+          "roc_auc": 0.9986,
+          "num_samples": 100
+        },
+        "accuracy_drop": 0.0,
+        "f1_drop": 0.0,
+        "relative_accuracy_retention": 1.0,
+        "noise_sensitivity_index": 0.0
+      },
+      {
+        "arch_id": "baseline_vqc_depth12",
+        "noise_config": {
+          "name": "High_Noise",
+          "single_qubit_error": 0.005,
+          "two_qubit_error": 0.03,
+          "measurement_error": 0.03,
+          "shots": 1024
+        },
+        "ideal_metrics": {
+          "accuracy": 0.95,
+          "precision_macro": 0.9545454545454546,
+          "recall_macro": 0.95,
+          "f1_macro": 0.949874686716792,
+          "confusion_matrix": [
+            [
+              50,
+              0
+            ],
+            [
+              5,
+              45
+            ]
+          ],
+          "roc_auc": 0.9984,
+          "num_samples": 100
+        },
+        "noisy_metrics": {
+          "accuracy": 0.95,
+          "precision_macro": 0.9545454545454546,
+          "recall_macro": 0.95,
+          "f1_macro": 0.949874686716792,
+          "confusion_matrix": [
+            [
+              50,
+              0
+            ],
+            [
+              5,
+              45
+            ]
+          ],
+          "roc_auc": 0.9984,
+          "num_samples": 100
+        },
+        "accuracy_drop": 0.0,
+        "f1_drop": 0.0,
+        "relative_accuracy_retention": 1.0,
+        "noise_sensitivity_index": 0.0
+      }
+    ],
+    "optimized": [
+      {
+        "arch_id": "arch_b137878901",
+        "noise_config": {
+          "name": "Low_Noise",
+          "single_qubit_error": 0.0005,
+          "two_qubit_error": 0.005,
+          "measurement_error": 0.005,
+          "shots": 1024
+        },
+        "ideal_metrics": {
+          "accuracy": 0.96,
+          "precision_macro": 0.96,
+          "recall_macro": 0.96,
+          "f1_macro": 0.96,
+          "confusion_matrix": [
+            [
+              48,
+              2
+            ],
+            [
+              2,
+              48
+            ]
+          ],
+          "roc_auc": 0.9872,
+          "num_samples": 100
+        },
+        "noisy_metrics": {
+          "accuracy": 0.95,
+          "precision_macro": 0.9501800720288115,
+          "recall_macro": 0.95,
+          "f1_macro": 0.9499949994999499,
+          "confusion_matrix": [
+            [
+              47,
+              3
+            ],
+            [
+              2,
+              48
+            ]
+          ],
+          "roc_auc": 0.984,
+          "num_samples": 100
+        },
+        "accuracy_drop": 0.01,
+        "f1_drop": 0.01,
+        "relative_accuracy_retention": 0.9896,
+        "noise_sensitivity_index": 0.0104
+      },
+      {
+        "arch_id": "arch_b137878901",
+        "noise_config": {
+          "name": "Medium_Noise",
+          "single_qubit_error": 0.001,
+          "two_qubit_error": 0.01,
+          "measurement_error": 0.015,
+          "shots": 1024
+        },
+        "ideal_metrics": {
+          "accuracy": 0.96,
+          "precision_macro": 0.96,
+          "recall_macro": 0.96,
+          "f1_macro": 0.96,
+          "confusion_matrix": [
+            [
+              48,
+              2
+            ],
+            [
+              2,
+              48
+            ]
+          ],
+          "roc_auc": 0.9872,
+          "num_samples": 100
+        },
+        "noisy_metrics": {
+          "accuracy": 0.95,
+          "precision_macro": 0.9501800720288115,
+          "recall_macro": 0.95,
+          "f1_macro": 0.9499949994999499,
+          "confusion_matrix": [
+            [
+              47,
+              3
+            ],
+            [
+              2,
+              48
+            ]
+          ],
+          "roc_auc": 0.9852,
+          "num_samples": 100
+        },
+        "accuracy_drop": 0.01,
+        "f1_drop": 0.01,
+        "relative_accuracy_retention": 0.9896,
+        "noise_sensitivity_index": 0.0104
+      },
+      {
+        "arch_id": "arch_b137878901",
+        "noise_config": {
+          "name": "High_Noise",
+          "single_qubit_error": 0.005,
+          "two_qubit_error": 0.03,
+          "measurement_error": 0.03,
+          "shots": 1024
+        },
+        "ideal_metrics": {
+          "accuracy": 0.96,
+          "precision_macro": 0.96,
+          "recall_macro": 0.96,
+          "f1_macro": 0.96,
+          "confusion_matrix": [
+            [
+              48,
+              2
+            ],
+            [
+              2,
+              48
+            ]
+          ],
+          "roc_auc": 0.9872,
+          "num_samples": 100
+        },
+        "noisy_metrics": {
+          "accuracy": 0.91,
+          "precision_macro": 0.9101640656262505,
+          "recall_macro": 0.91,
+          "f1_macro": 0.90999099909991,
+          "confusion_matrix": [
+            [
+              45,
+              5
+            ],
+            [
+              4,
+              46
+            ]
+          ],
+          "roc_auc": 0.9788000000000001,
+          "num_samples": 100
+        },
+        "accuracy_drop": 0.05,
+        "f1_drop": 0.05,
+        "relative_accuracy_retention": 0.9479,
+        "noise_sensitivity_index": 0.0521
+      }
+    ]
+  }
+}

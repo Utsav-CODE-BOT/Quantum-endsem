@@ -1,0 +1,38 @@
+# Dataset Configuration
+# Fashion-MNIST loading and subset selection
+
+dataset:
+  name: "fashion_mnist"
+  source: "torchvision"  # Uses torchvision.datasets.FashionMNIST
+
+  # Class selection for binary classification
+  # Label mapping: 0=T-shirt, 1=Trouser, 2=Pullover, 3=Dress, 4=Coat,
+  #                5=Sandal, 6=Shirt, 7=Sneaker, 8=Bag, 9=Ankle boot
+  selected_classes: [0, 9]  # T-shirt vs Ankle boot (visually distinct)
+
+  class_names:
+    0: "T-shirt/top"
+    1: "Trouser"
+    2: "Pullover"
+    3: "Dress"
+    4: "Coat"
+    5: "Sandal"
+    6: "Shirt"
+    7: "Sneaker"
+    8: "Bag"
+    9: "Ankle boot"
+
+  # Subset sizes per class (for computational feasibility)
+  samples_per_class_train: 100
+  samples_per_class_val: 30
+  samples_per_class_test: 50
+
+  # Data split ratios (used only if not using fixed sample counts)
+  # train_ratio: 0.6
+  # val_ratio: 0.2
+  # test_ratio: 0.2
+
+  # Paths
+  raw_data_dir: "data/raw"
+  processed_data_dir: "data/processed"
+  metadata_dir: "data/metadata"

@@ -1,0 +1,80 @@
+{
+  "arch_id": "arch_b137878901",
+  "config": {
+    "num_qubits": 4,
+    "num_layers": 1,
+    "rotation_gates": [
+      "rx",
+      "ry"
+    ],
+    "entanglement_type": "linear",
+    "entanglement_freq": 2,
+    "feature_rotation": "ry",
+    "measurement_strategy": "parity",
+    "arch_id": "arch_b137878901"
+  },
+  "circuit_metadata": {
+    "num_qubits": 4,
+    "circuit_depth": 5,
+    "total_gates": 20,
+    "single_qubit_gates": 20,
+    "two_qubit_gates": 0,
+    "gate_distribution": {
+      "r": 20
+    },
+    "num_input_features": 4,
+    "num_trainable_parameters": 16
+  },
+  "val_metrics": {
+    "accuracy": 0.95,
+    "precision_macro": 0.9545454545454546,
+    "recall_macro": 0.95,
+    "f1_macro": 0.949874686716792,
+    "confusion_matrix": [
+      [
+        27,
+        3
+      ],
+      [
+        0,
+        30
+      ]
+    ],
+    "roc_auc": 0.9988888888888889,
+    "num_samples": 60
+  },
+  "train_metrics": null,
+  "test_metrics": {
+    "accuracy": 0.97,
+    "precision_macro": 0.970188075230092,
+    "recall_macro": 0.97,
+    "f1_macro": 0.96999699969997,
+    "confusion_matrix": [
+      [
+        49,
+        1
+      ],
+      [
+        2,
+        48
+      ]
+    ],
+    "roc_auc": 0.9896,
+    "num_samples": 100
+  },
+  "fitness": 0.6599999999999999,
+  "fitness_breakdown": {
+    "scalar_fitness": 0.6599999999999999,
+    "performance_score": 0.95,
+    "complexity_score": 0.05,
+    "robustness_score": 1.0,
+    "w_performance": 0.5,
+    "w_complexity": 0.3,
+    "w_robustness": 0.2
+  },
+  "training_time_seconds": 12.97,
+  "evaluation_time_seconds": 0.334,
+  "is_cached": false,
+  "success": true,
+  "error_message": ""
+}

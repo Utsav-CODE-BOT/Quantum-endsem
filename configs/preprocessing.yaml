@@ -1,0 +1,22 @@
+# Preprocessing Configuration
+
+preprocessing:
+  # Image normalization
+  normalization:
+    method: "minmax"  # Scale pixel values to [0, 1]
+    pixel_range: [0, 255]
+
+  # PCA dimensionality reduction
+  pca:
+    n_components: 4  # Number of features to retain (4, 6, or 8)
+    whiten: false
+    # PCA is ALWAYS fit on training data only
+
+  # Feature scaling for quantum encoding
+  feature_scaling:
+    method: "minmax"  # Scale PCA features to target range
+    target_range: [0.0, 3.14159265]  # [0, pi] for angle encoding
+
+  # Persistence
+  save_fitted_params: true
+  params_path: "data/metadata/preprocessing_params.pkl"

@@ -1,0 +1,28 @@
+# Training Configuration
+
+training:
+  # Classical optimizer for VQC
+  optimizer:
+    name: "cobyla"  # cobyla, spsa, l_bfgs_b
+    maxiter: 100
+    # COBYLA-specific
+    tol: 1.0e-4
+    # SPSA-specific (used only if optimizer is spsa)
+    spsa_learning_rate: 0.05
+    spsa_perturbation: 0.1
+
+  # Training control
+  max_epochs: 100  # Maximum training iterations
+  patience: 10  # Early stopping patience (0 = disabled)
+  min_improvement: 1.0e-4  # Minimum loss improvement for early stopping
+
+  # Reproducibility
+  parameter_init_seed: 42  # Seed for initial parameter values
+
+  # Checkpointing
+  save_checkpoints: true
+  checkpoint_dir: "experiments/checkpoints"
+
+  # History
+  save_history: true
+  history_dir: "experiments/logs"

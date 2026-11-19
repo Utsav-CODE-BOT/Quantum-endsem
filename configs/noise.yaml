@@ -1,0 +1,38 @@
+# Noise Simulation Configuration
+
+noise:
+  # Enable noise evaluation
+  enabled: false  # Set to true when running noise experiments
+
+  # Noise model type
+  model: "depolarizing"  # depolarizing, custom
+
+  # Depolarizing noise parameters
+  depolarizing:
+    single_qubit_error: 0.001  # Error probability for single-qubit gates
+    two_qubit_error: 0.01  # Error probability for two-qubit gates
+
+  # Measurement error
+  measurement_error:
+    enabled: true
+    probability: 0.01  # Probability of bit-flip on measurement
+
+  # Noise levels for sweep experiments
+  noise_levels:
+    - label: "low"
+      single_qubit_error: 0.0005
+      two_qubit_error: 0.005
+      measurement_error: 0.005
+    - label: "medium"
+      single_qubit_error: 0.001
+      two_qubit_error: 0.01
+      measurement_error: 0.01
+    - label: "high"
+      single_qubit_error: 0.005
+      two_qubit_error: 0.05
+      measurement_error: 0.05
+
+  # Simulator settings for noisy simulation
+  simulator:
+    backend: "aer"
+    shots: 1024

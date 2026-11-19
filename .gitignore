@@ -1,0 +1,37 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python & Testing Caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Raw downloaded datasets (auto-downloadable via scripts/download_dataset.py)
+data/raw/FashionMNIST/
+data/raw/*.gz
+
+# Experiment logs (optional debug logs)
+experiments/logs/*.log
+
+# Environment variables
+.env
+.env.local
+
+# Jupyter
+.ipynb_checkpoints/
+

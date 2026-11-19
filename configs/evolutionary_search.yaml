@@ -1,0 +1,52 @@
+# Evolutionary Architecture Search Configuration
+
+evolutionary_search:
+  # Population
+  population_size: 10
+  elite_count: 2  # Top candidates preserved across generations
+
+  # Generations
+  max_generations: 5
+  stagnation_limit: 3  # Stop if no improvement for N generations
+
+  # Genetic operators
+  crossover:
+    probability: 0.7
+    method: "uniform"  # uniform or single_point
+
+  mutation:
+    probability: 0.3
+    # Per-gene mutation probabilities
+    mutate_n_layers: 0.4
+    mutate_rotation_gates: 0.3
+    mutate_entanglement_type: 0.3
+    mutate_entanglement_freq: 0.2
+
+  # Selection
+  selection:
+    method: "tournament"  # tournament or roulette
+    tournament_size: 3
+
+  # Fitness function (weighted scalar)
+  # Fitness = w_performance * perf - w_complexity * complexity + w_noise_robustness * robustness
+  fitness:
+    w_performance: 0.5
+    w_complexity: 0.3
+    w_noise_robustness: 0.2
+    # Complexity normalization: complexity = circuit_depth / max_possible_depth
+    # Performance: validation accuracy [0, 1]
+    # Noise robustness: 1 - (perf_ideal - perf_noisy) / perf_ideal  [0, 1]
+
+  # Budget
+  max_evaluations: 100  # Total candidate evaluations budget
+  time_limit_minutes: 120  # Wall-clock time limit
+
+  # Caching
+  cache_evaluations: true
+
+  # Reproducibility
+  search_seed: 42
+
+  # Logging
+  save_search_history: true
+  history_path: "experiments/results/search_history.json"

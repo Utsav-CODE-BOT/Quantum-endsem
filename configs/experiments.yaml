@@ -1,0 +1,44 @@
+# Experiment Configuration
+
+experiments:
+  # Experiment metadata
+  name: "default_experiment"
+  description: "Resource-aware VQC architecture search on Fashion-MNIST"
+
+  # Global random seed
+  global_seed: 42
+
+  # Output directories
+  output_dir: "experiments"
+  results_dir: "experiments/results"
+  figures_dir: "experiments/figures"
+  logs_dir: "experiments/logs"
+
+  # Experiment stages
+  stages:
+    - name: "baseline"
+      description: "Train and evaluate fixed VQC baselines"
+      enabled: true
+
+    - name: "architecture_search"
+      description: "Run evolutionary architecture optimization"
+      enabled: true
+
+    - name: "noise_evaluation"
+      description: "Evaluate selected architectures under noise"
+      enabled: true
+
+    - name: "classical_baselines"
+      description: "Train and evaluate SVM and NN baselines"
+      enabled: true
+
+    - name: "comparison"
+      description: "Generate comparison benchmarks"
+      enabled: true
+
+  # Reporting
+  generate_plots: true
+  plot_format: "png"  # png or pdf
+  plot_dpi: 150
+  generate_csv: true
+  generate_json: true

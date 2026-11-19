@@ -1,0 +1,57 @@
+{
+  "training_time_seconds": 75.62,
+  "total_evaluations": 100,
+  "seconds_per_evaluation": 0.7562,
+  "seconds_per_sample_evaluation": 0.003781,
+  "circuit_metadata": {
+    "num_qubits": 4,
+    "circuit_depth": 12,
+    "total_gates": 34,
+    "single_qubit_gates": 28,
+    "two_qubit_gates": 6,
+    "gate_distribution": {
+      "r": 16,
+      "u1": 12,
+      "cx": 6
+    },
+    "num_input_features": 4,
+    "num_trainable_parameters": 24
+  },
+  "validation_metrics": {
+    "accuracy": 1.0,
+    "precision_macro": 1.0,
+    "recall_macro": 1.0,
+    "f1_macro": 1.0,
+    "confusion_matrix": [
+      [
+        30,
+        0
+      ],
+      [
+        0,
+        30
+      ]
+    ],
+    "roc_auc": 1.0,
+    "num_samples": 60
+  },
+  "test_metrics": {
+    "accuracy": 0.96,
+    "precision_macro": 0.962962962962963,
+    "recall_macro": 0.96,
+    "f1_macro": 0.9599358974358975,
+    "confusion_matrix": [
+      [
+        46,
+        4
+      ],
+      [
+        0,
+        50
+      ]
+    ],
+    "roc_auc": 0.9992,
+    "num_samples": 100
+  },
+  "memory_ram_used_gb": 11.73
+}

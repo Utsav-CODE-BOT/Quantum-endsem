@@ -1,0 +1,29 @@
+# Quantum Circuit Configuration
+
+quantum:
+  # Feature encoding
+  encoding:
+    method: "angle"  # RY angle encoding
+    rotation_gate: "ry"  # Gate used for feature encoding
+
+  # Default circuit architecture (used for baseline VQC)
+  default_architecture:
+    n_qubits: 4  # Must match PCA n_components for angle encoding
+    n_layers: 2
+    rotation_gates: ["ry", "rz"]
+    entanglement_type: "linear"  # linear, circular, pairwise
+    entanglement_freq: 1  # Apply entanglement every N layers
+    measurement_type: "parity"  # parity or single_qubit
+
+  # Architecture search bounds
+  search_space:
+    n_qubits_options: [4, 6, 8]
+    n_layers_range: [1, 6]
+    rotation_gate_options: ["rx", "ry", "rz"]
+    entanglement_options: ["linear", "circular", "pairwise"]
+    entanglement_freq_range: [1, 3]
+
+  # Simulator
+  simulator:
+    backend: "statevector"  # statevector (ideal) or aer (shot-based/noisy)
+    shots: 1024  # Only used with aer backend
