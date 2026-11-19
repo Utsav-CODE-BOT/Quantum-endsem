@@ -65,7 +65,7 @@
 ### Phase 9: Classical & Quantum Baselines
 - **Status:** ✅ Completed
 - **Deliverables:** `src/baselines/classical_svm.py` (Linear & RBF SVM), `classical_nn.py` (Classical MLP), `fixed_vqc.py` (Shallow, Standard, Deep VQC factory functions), `tests/test_baselines.py`, `scripts/run_benchmarks.py`.
-- **Empirical Results:** Rigorous side-by-side benchmarking of 7 models on identical data splits. Deep VQC showed performance degradation (92.00%) due to barren plateaus, while Search-Optimized VQC achieved 96.00% test accuracy with 5 depth. Results saved to `experiments/results/benchmark_comparison.json`.
+- **Empirical Results:** Rigorous side-by-side benchmarking of 7 models on identical data splits. Deep VQC showed performance degradation (92.00%) consistent with depth-dependent optimization bottlenecks, while Search-Optimized VQC achieved 96.00% test accuracy with 5 depth. Results saved to `experiments/results/benchmark_comparison.json`.
 
 ### Phase 10: Full Experimental Suite & Ablation Studies
 - **Status:** ✅ Completed

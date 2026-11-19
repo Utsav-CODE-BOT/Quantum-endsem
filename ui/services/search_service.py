@@ -73,6 +73,7 @@ class SearchJobState:
 class SearchService:
     """Service orchestrating background evolutionary searches and saved history retrieval."""
 
+    _lock: threading.Lock = threading.Lock()
     _active_job: SearchJobState = SearchJobState()
     _worker_thread: threading.Thread | None = None
 
@@ -84,17 +85,21 @@ class SearchService:
     @classmethod
     def is_running(cls) -> bool:
         """Return whether an evolutionary search is currently executing."""
-        with cls._active_job.lock:
-            return cls._active_job.status in ("running", "cancelling")
+        with cls._lock:
+            if cls._worker_thread is not None and cls._worker_thread.is_alive():
+                return True
+            with cls._active_job.lock:
+                return cls._active_job.status in ("running", "cancelling")
 
     @classmethod
     def cancel_search(cls) -> None:
         """Request cooperative cancellation of the running search."""
-        with cls._active_job.lock:
-            if cls._active_job.status in ("running", "cancelling"):
-                cls._active_job._cancel_requested = True
-                cls._active_job.status = "cancelling"
-                logger.info("Evolutionary search cancellation requested by user.")
+        with cls._lock:
+            with cls._active_job.lock:
+                if cls._active_job.status == "running":
+                    cls._active_job._cancel_requested = True
+                    cls._active_job.status = "cancelling"
+                    logger.info("Evolutionary search cancellation requested by user.")
 
     @classmethod
     def load_saved_history(cls) -> dict[str, Any]:
@@ -128,20 +133,23 @@ class SearchService:
         tournament_size: int = 2,
         random_seed: int = 42,
     ) -> bool:
-        """Launch background evolutionary architecture search."""
-        if cls._worker_thread is not None and cls._worker_thread.is_alive():
-            logger.warning("Attempted to start search while worker thread is still active.")
-            return False
+        """Launch background evolutionary architecture search with dedicated job state."""
+        with cls._lock:
+            if cls._worker_thread is not None and cls._worker_thread.is_alive():
+                logger.warning("Attempted to start search while worker thread is still active.")
+                return False
 
-        with cls._active_job.lock:
-            if cls._active_job.status in ("running", "cancelling"):
-                return False  # Already running
+            with cls._active_job.lock:
+                if cls._active_job.status in ("running", "cancelling"):
+                    return False
 
-            cls._active_job = SearchJobState()
-            cls._active_job.status = "running"
-            cls._active_job.total_generations = generations
+            # Create an independent state container for this specific search run
+            job = SearchJobState()
+            job.status = "running"
+            job.total_generations = generations
+            cls._active_job = job
 
-        def _worker():
+        def _worker(current_job: SearchJobState) -> None:
             t0 = time.perf_counter()
             try:
                 # 1. Load data
@@ -150,7 +158,7 @@ class SearchService:
                 X_train, y_train = data["X_train"], data["y_train"]
                 X_val, y_val = data["X_val"], data["y_val"]
 
-                # 2. Setup Evaluator
+                # 2. Setup Evaluator with active noise evaluation
                 fitness_calc = FitnessCalculator(
                     w_performance=w_perf,
                     w_complexity=w_comp,
@@ -165,6 +173,7 @@ class SearchService:
                     maxiter=maxiter,
                     optimizer_name="cobyla",
                     training_seed=random_seed,
+                    evaluate_noise=True,
                     enable_cache=True,
                 )
 
@@ -186,18 +195,18 @@ class SearchService:
                 overall_best: CandidateEvaluationResult | None = None
 
                 for gen in range(generations):
-                    if cls._active_job._cancel_requested:
+                    if current_job._cancel_requested:
                         break
 
                     gen_start = time.perf_counter()
                     evaluated_pop = []
                     for cfg in current_configs:
-                        if cls._active_job._cancel_requested:
+                        if current_job._cancel_requested:
                             break
                         res = evaluator.evaluate(cfg)
                         evaluated_pop.append(res)
 
-                    if cls._active_job._cancel_requested:
+                    if current_job._cancel_requested:
                         break
 
                     evaluated_pop.sort(key=lambda c: c.fitness, reverse=True)
@@ -214,7 +223,7 @@ class SearchService:
                         elapsed_time_seconds=round(gen_time, 2),
                     )
                     generation_history.append(rec)
-                    cls._active_job.update_generation(rec, generations)
+                    current_job.update_generation(rec, generations)
 
                     if overall_best is None or gen_best.fitness > overall_best.fitness:
                         overall_best = gen_best
@@ -234,17 +243,17 @@ class SearchService:
                     current_configs = next_configs
 
                 total_time = time.perf_counter() - t0
-                with cls._active_job.lock:
-                    if cls._active_job._cancel_requested:
-                        cls._active_job.status = "cancelled"
-                        cls._active_job.elapsed_time_seconds = total_time
+                with current_job.lock:
+                    if current_job._cancel_requested:
+                        current_job.status = "cancelled"
+                        current_job.elapsed_time_seconds = total_time
                         logger.info("Evolutionary search was cancelled gracefully.")
                         return
 
-                    cls._active_job.status = "completed"
-                    cls._active_job.elapsed_time_seconds = total_time
+                    current_job.status = "completed"
+                    current_job.elapsed_time_seconds = total_time
                     if overall_best:
-                        cls._active_job.final_result = overall_best.to_dict()
+                        current_job.final_result = overall_best.to_dict()
 
                 # Persist UI search results if successful and not cancelled
                 if overall_best is not None and generation_history:
@@ -292,10 +301,10 @@ class SearchService:
 
             except Exception as e:
                 logger.error("Error in evolutionary search worker: %s", e)
-                with cls._active_job.lock:
-                    cls._active_job.status = "error"
-                    cls._active_job.error_message = str(e)
+                with current_job.lock:
+                    current_job.status = "error"
+                    current_job.error_message = str(e)
 
-        cls._worker_thread = threading.Thread(target=_worker, daemon=True)
+        cls._worker_thread = threading.Thread(target=_worker, args=(job,), daemon=True)
         cls._worker_thread.start()
         return True

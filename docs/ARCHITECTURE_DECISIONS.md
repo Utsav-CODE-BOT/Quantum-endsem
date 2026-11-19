@@ -87,8 +87,8 @@
 - **Context:** Architecture search must balance classification performance, quantum circuit complexity (depth and gate count), and simulated noise robustness without falling into local minima.
 - **Decision:** Define scalar fitness as:
   $$F(A) = 0.50 \cdot \text{Acc}_{\text{val}}(A) - 0.30 \cdot \text{Complexity}(A) + 0.20 \cdot \text{Robustness}(A)$$
-  where $\text{Complexity}(A) = \frac{1}{2}\left(\frac{\text{depth}}{\text{depth}_{\max}} + \frac{\text{gates}}{\text{gates}_{\max}}\right)$.
-- **Rationale:** Prevents the optimizer from favoring arbitrarily deep circuits that overfit or fail under noise. Directly rewards compact NISQ-friendly topologies.
+  where $\text{Complexity}(A) = \frac{1}{2}\left(\frac{\text{depth}}{\text{depth}_{\max}} + \frac{N_{2Q}}{\text{CX}_{\max}}\right)$ with $\text{depth}_{\max} = 50$ and $\text{CX}_{\max} = 30$.
+- **Rationale:** Prevents the optimizer from favoring arbitrarily deep circuits that overfit or fail under noise. Directly rewards compact NISQ-friendly topologies by penalizing error-prone two-qubit entangling gates.
 - **Consequences:** Autonomously steered the search toward a depth-5 circuit with 16 parameters achieving 96% accuracy.
 - **Status:** Approved & Verified
 

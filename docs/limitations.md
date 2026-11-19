@@ -17,12 +17,12 @@ where $P$ is population size, $G$ is generations, $I$ is optimizer iterations, $
 
 ---
 
-## 2. Trainability & The Barren Plateau Phenomenon
+## 2. Trainability & Circuit Depth Trade-offs
 
-Variational Quantum Algorithms are fundamentally constrained by the **barren plateau phenomenon** (McClean et al., 2018; Cerezo et al., 2021):
-- For randomly initialized, deep, highly entangled circuits, the variance of cost function gradients vanishes exponentially with qubit count:
+Variational Quantum Algorithms are often discussed in the context of the **barren plateau phenomenon** (McClean et al., 2018; Cerezo et al., 2021):
+- For randomly initialized, deep, highly entangled circuits, theoretical gradient variance vanishes exponentially with qubit count:
   $$\text{Var}_{\boldsymbol{\theta}} \left[ \frac{\partial \mathcal{L}}{\partial \theta_k} \right] \in \mathcal{O}\left(\frac{1}{2^n}\right)$$
-- In our empirical benchmarks, the Fixed Deep VQC (depth 27, 40 parameters) exhibited degraded test accuracy (92.00%) compared to the shallow (99.00%) and optimized (96.00%) architectures. While this empirical degradation with increasing circuit depth is consistent with trainability bottlenecks and landscape flattening characteristic of overparameterized variational circuits, we emphasize that formal mathematical confirmation of barren plateaus requires explicit gradient variance scaling measurements across varying system sizes $n$, rather than solely observing terminal classification metrics on a fixed 4-qubit circuit.
+- In our empirical benchmarks, the Fixed Deep VQC (depth 27, 40 parameters) exhibited lower test accuracy (92.00%) and required longer training time (51.74s) compared to the shallow (99.00%) and optimized (96.00%) architectures. The deeper VQC performed worse in this experiment. This may be associated with optimization difficulties, overparameterization, and cost landscape flattening, but the experiment does not establish the presence of barren plateaus. To claim barren plateau behavior rigorously, one must measure gradient variance $\text{Var}_{\boldsymbol{\theta}}[\partial \mathcal{L}/\partial \theta_k]$ across circuit depths, random initializations, and scaling system sizes $n$.
 
 ---
 

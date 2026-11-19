@@ -93,6 +93,7 @@ def main() -> None:
         fitness_calculator=fitness_calc,
         maxiter=maxiter,
         training_seed=seed_mgr.derive_seed("vqc_evaluator"),
+        evaluate_noise=True,
         enable_cache=True,
     )
 

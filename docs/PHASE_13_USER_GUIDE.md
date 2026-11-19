@@ -25,7 +25,7 @@ The application features a responsive sidebar with live backend health telemetry
 ### Page 1: Overview Dashboard (`1_Overview.py`)
 - **Purpose:** High-level summary of the research study and key empirical discoveries.
 - **Key Visualizations:**
-  - Executive KPI Cards: Test Accuracy (95.0%), Circuit Depth Reduction (-58.3%), Two-Qubit CX Gates (0), High Noise Retention (100%).
+  - Executive KPI Cards: Dynamically loaded from saved experiment files (Test Accuracy, Circuit Depth Reduction, Two-Qubit CX Gates, High Noise Retention). Displays "Not Available" / "N/A" if experiment artifacts have not yet been produced.
   - Multi-Objective Pareto Frontier: Plotly interactive scatter showing all evaluated architectures in accuracy vs. depth space with non-dominated Pareto marking.
   - Fitness Convergence: Evolutionary progress across generations.
   - Model Performance: Side-by-side comparison with classical baselines (Linear SVM, RBF SVM, MLP).
@@ -41,7 +41,7 @@ The application features a responsive sidebar with live backend health telemetry
     3. PCA Dimensionality Reduction ($784 \to 4$ orthogonal components).
     4. Quantum Angle Encoding (feature scaling to $[0, \pi]$ radians).
   - PCA Explained Variance Scree Plot: Visualizing individual and cumulative variance captured by each principal component.
-  - Dataset Summary Table: Train/Val/Test partitions ($840 / 180 / 180$).
+  - Dataset Summary Table: Train/Val/Test partitions ($200 / 60 / 100$, 360 total).
 
 ### Page 3: Quantum Circuit Lab (`3_Quantum_Circuit_Lab.py`)
 - **Purpose:** Real-time quantum circuit design, compilation, and gate-level resource profiling.
