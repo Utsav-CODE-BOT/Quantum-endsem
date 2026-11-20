@@ -3,11 +3,11 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![Qiskit](https://img.shields.io/badge/Qiskit-1.4.2-613394.svg)](https://qiskit.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing%20(135%2F135)-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing%20(136%2F136)-brightgreen.svg)](tests/)
 
 An end-to-end, research-grade quantum machine learning framework developed in Python and Qiskit that automates the discovery, optimization, and evaluation of **Variational Quantum Classifiers (VQCs)**.
 
-The framework resolves the multi-objective trade-off between **predictive accuracy**, **quantum circuit complexity** (depth and gate count), and **simulated quantum hardware noise robustness** on the Fashion-MNIST image dataset.
+The framework resolves the multi-objective trade-off between **predictive accuracy**, **quantum circuit complexity** (depth and gate count), and **simulated NISQ noise robustness** on the Fashion-MNIST image dataset using Qiskit Aer density-matrix simulations.
 
 ---
 
@@ -18,10 +18,10 @@ The framework resolves the multi-objective trade-off between **predictive accura
    where:
    $$f_{\text{perf}}(A) = \text{Acc}_{\text{val}}(A)$$
    $$f_{\text{comp}}(A) = \frac{1}{2}\left(\frac{\text{depth}(A)}{50} + \frac{N_{2Q}(A)}{30}\right)$$
-   $$f_{\text{rob}}(A) = \max\left(0, 1 - \frac{\text{Acc}_{\text{val}}(A) - \text{Acc}_{\text{noisy}}(A)}{\text{Acc}_{\text{val}}(A)}\right)$$
-   with default weights $w_{\text{perf}} = 0.50$, $w_{\text{comp}} = 0.30$, and $w_{\text{rob}} = 0.20$.
-2. **Empirical Resource Reduction Without Accuracy Loss:** The search autonomously discovered a compact architecture (`arch_6327d7bcb8`) that reduces circuit depth by **58.3%** (from 12 to 5) and parameter count by **33.3%** (from 24 to 16) while achieving **96.00% test accuracy**, outperforming deeper fixed baselines.
-3. **Rigorous Hardware Noise Benchmarking:** Paired evaluation across ideal statevector simulation and realistic NISQ noise tiers (low, medium, and high depolarizing + readout error) using Qiskit Aer's density matrix backend.
+   $$f_{\text{rob}}(A) = \min\left(1, \max\left(0, \frac{\text{Acc}_{\text{noisy}}(A)}{\text{Acc}_{\text{val}}(A)}\right)\right)$$
+   assuming $\text{Acc}_{\text{val}}(A) > 0$ (guarded against division by zero). Here $f_{\text{rob}}(A)$ represents the exact fraction of ideal validation accuracy retained under simulated NISQ noise, mathematically clamped to $[0, 1]$ to prevent scores exceeding $1.0$. If noise evaluation fails, the candidate is disqualified ($F(A) = -1.0$). Default weights are $w_{\text{perf}} = 0.50$, $w_{\text{comp}} = 0.30$, and $w_{\text{rob}} = 0.20$.
+2. **Empirical Resource Reduction with High Noise Retention:** The search discovered compact Pareto-efficient architectures (e.g., `arch_4169ee9360` with depth 10, 1 CX gate, 32 parameters, and `arch_b137878901` with depth 5, 0 CX gates, 16 parameters) that cut two-qubit entangling gates by **83.3% to 100%** while achieving **90.00% to 96.00% test accuracy** and up to **100.00% accuracy retention** under simulated NISQ noise tiers.
+3. **Rigorous Simulated NISQ Noise Benchmarking:** Paired evaluation across ideal statevector simulation and hardware-inspired NISQ noise tiers (low, medium, and high depolarizing + readout error, 1,024 shots) using Qiskit Aer's density matrix backend. *(Note: All experiments represent classical simulations of hardware-inspired noise models, not physical quantum device executions.)*
 4. **Strict Methodological Discipline:** Zero data leakage (PCA and scaling fitted strictly on training data), standard scikit-learn compatible interfaces, and honest scientific reporting without unsubstantiated "quantum advantage" claims.
 
 ---
@@ -48,27 +48,39 @@ The framework resolves the multi-objective trade-off between **predictive accura
                                 (Ry rotations on 4 Qubits)
                                            │
                                            ▼
-   ┌─────────────────────────────── Evolutionary Architecture Loop ─────────────────────────────┐
-   │                                                                                            │
-   │   [Population Generator] ──► [Ansatz Circuit Generator] ──► [Configurable VQC (COBYLA)]    │
-   │            ▲                                                            │                  │
-   │            │                                                            ▼                  │
-   │     [Genetic Operators]                                     [Validation Evaluator]         │
-   │   (Crossover, Mutation,    ◄── [Fitness Engine] ◄────────── (Accuracy, Depth, Gates)       │
-   │     Elitist Selection)      (w_p·Perf - w_c·Comp + w_r·Rob)                                │
-   │                                                                                            │
-   └─────────────────────────────────────────┬──────────────────────────────────────────────────┘
-                                             │
-                                             ▼ (Best Architecture)
-                             [Noise-Aware Hardware Evaluation]
-                       (Depolarizing + Readout Noise: AerSimulator)
-                                             │
-                                             ▼
-                               [Multi-Model Benchmarking]
-                        (Linear SVM, RBF SVM, MLP, Fixed VQCs)
-                                             │
-                                             ▼
-                             [Figures & Research Reporting]
+   ┌──────────────────────────────── Evolutionary Architecture Loop ────────────────────────────────┐
+   │                                                                                                │
+   │   [Population Generator] ──► [Ansatz Circuit Generator] ──► [Configurable VQC (COBYLA)]        │
+   │            ▲                                                            │                      │
+   │            │                                                            ▼                      │
+   │            │                                              [Multi-Objective Evaluator]          │
+   │            │                                          ┌────────────────────────────────────┐   │
+   │            │                                          │ • Ideal Validation Accuracy        │   │
+   │            │                                          │ • Circuit Complexity (Depth & CX)  │   │
+   │            │                                          │ • Noisy Validation Accuracy (Aer)  │   │
+   │            │                                          └─────────────────┬──────────────────┘   │
+   │            │                                                            │                      │
+   │            │                     Validation accuracy +                  │                      │
+   │            │                     Circuit complexity +           ◄───────┘                      │
+   │            │                     Noisy validation accuracy                                     │
+   │            │                                │                                                  │
+   │            │                                ▼                                                  │
+   │     [Genetic Operators]         ◄── [Fitness Engine]                                           │
+   │   (Crossover, Mutation,              w_p·Perf - w_c·Comp + w_r·Rob                             │
+   │     Elitist Selection)                                                                         │
+   │                                                                                                │
+   └─────────────────────────────────────────────┬──────────────────────────────────────────────────┘
+                                                 │
+                                                 ▼ (Best Architecture)
+                                   [Simulated NISQ Noise Evaluation]
+                              (Depolarizing + Readout Noise: AerSimulator)
+                                                 │
+                                                 ▼
+                                     [Multi-Model Benchmarking]
+                               (Linear SVM, RBF SVM, MLP, Fixed VQCs)
+                                                 │
+                                                 ▼
+                                   [Figures & Research Reporting]
 ```
 
 ---
@@ -79,31 +91,31 @@ Evaluated on Fashion-MNIST binary classification (Class 0: T-shirt vs Class 9: A
 
 | Model Name | Category | Trainable Params | Circuit Depth | 2-Qubit Gates | Val Acc | Test Acc | Test F1 | Test ROC-AUC | Training Time | Latency / Sample |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Linear SVM** | Classical | 41 | - | - | 100.00% | 100.00% | 1.0000 | 1.0000 | 0.03s | 0.03ms |
-| **RBF SVM** | Classical | 113 | - | - | 100.00% | 100.00% | 1.0000 | 1.0000 | 0.01s | 0.04ms |
-| **Classical MLP** | Classical | 25 | - | - | 30.00% | 40.00% | 0.3961 | 0.4020 | 0.28s | 0.03ms |
-| **Fixed Shallow VQC** | Quantum Baseline | 8 | 6 | 3 | 100.00% | 99.00% | 0.9900 | 1.0000 | 16.43s | 2.54ms |
-| **Fixed Standard VQC** | Quantum Baseline | 24 | 12 | 6 | 98.33% | 95.00% | 0.9499 | 0.9984 | 30.49s | 4.94ms |
-| **Fixed Deep VQC** | Quantum Baseline | 40 | 27 | 16 | 93.33% | 92.00% | 0.9195 | 0.9956 | 51.74s | 9.51ms |
-| **Search-Optimized VQC** | **Quantum Search** | **16** | **5** | **0** | **93.33%** | **96.00%** | **0.9600** | **0.9872** | **21.24s** | **3.13ms** |
+| **Linear SVM** | Classical | 41 | - | - | 100.00% | 100.00% | 1.0000 | 1.0000 | 0.05s | 0.02ms |
+| **RBF SVM** | Classical | 113 | - | - | 100.00% | 100.00% | 1.0000 | 1.0000 | 0.01s | 0.02ms |
+| **Classical MLP** | Classical | 25 | - | - | 30.00% | 40.00% | 0.3961 | 0.4020 | 0.26s | 0.02ms |
+| **Fixed Shallow VQC** | Quantum Baseline | 8 | 6 | 3 | 100.00% | 99.00% | 0.9900 | 1.0000 | 10.68s | 1.73ms |
+| **Fixed Standard VQC** | Quantum Baseline | 24 | 12 | 6 | 98.33% | 95.00% | 0.9499 | 0.9984 | 21.27s | 3.21ms |
+| **Fixed Deep VQC** | Quantum Baseline | 40 | 27 | 16 | 93.33% | 92.00% | 0.9195 | 0.9956 | 34.95s | 5.09ms |
+| **Search-Optimized VQC (`arch_4169ee9360`)** | **Quantum Search** | **32** | **10** | **1** | **88.33%** | **90.00%** | **0.8994** | **0.9688** | **23.17s** | **3.40ms** |
 
 ### Key Benchmark Insights:
-- **Optimization Degradation in Deeper Ansätze:** The deeper VQC exhibited lower classification accuracy (92.00%) and required longer training time (51.74s) than the shallow (99.00%) and search-optimized (96.00%) architectures. This may reflect optimization difficulties or overparameterization. However, gradient variance was not measured, so the presence of barren plateaus cannot be established from these results.
-- **Resource Optimization & Expressive Sufficiency (0 CX Gates):** The search-optimized model reached 96.00% test accuracy with only 16 parameters, depth 5, and 0 CX gates. The search found a compact architecture that outperformed the standard and deep fixed VQC baselines on this task. Single-qubit rotations proved expressive enough to separate the 4 orthogonal PCA features without incurring the 2-qubit gate noise penalty and depth overhead associated with entangling gates on NISQ hardware. Note that this task-specific result does not establish that entanglement is generally unnecessary in QML.
-- **Dataset Scale Scope (360 Samples):** Experiments evaluate a controlled 360-sample partition (200 train, 60 validation, 100 test). The 100% test accuracy achieved by classical Linear and RBF SVMs demonstrates that this 4D binary projection is linearly separable on this sample size, and should not be misinterpreted as 100% accuracy on full 10-class, 784-dimensional Fashion-MNIST or as quantum supremacy.
+- **Optimization Degradation in Deeper Ansätze:** The deeper VQC exhibited lower classification accuracy (92.00%) and required longer training time (34.95s) than the shallow (99.00%) and search-optimized (90.00%) architectures. This may reflect optimization difficulties or overparameterization. However, gradient variance was not measured, so the presence of barren plateaus cannot be established from these results.
+- **Resource Optimization & Expressive Sufficiency:** While PCA produces orthogonal component directions, this mathematical property does not, by itself, theoretically prove that a low-entangling quantum circuit has sufficient expressive capacity for classification. Rather, our justification is empirical: on this 360-sample partition, the search autonomously converged on compact models with minimal entangling gates ($CX = 1$ in `arch_4169ee9360` and $CX = 0$ in `arch_b137878901`) that achieved 90.00% to 96.00% test accuracy while avoiding the heavy noise penalty associated with two-qubit gates on NISQ devices. Note that this task-specific result does not establish that entanglement is generally unnecessary in QML or on more complex datasets.
+- **Dataset Scale Scope & Pilot Study Nature (360 Samples):** Experiments evaluate a controlled 360-sample partition (200 train, 60 validation, 100 test). With only 100 test samples, each correct or incorrect prediction changes test accuracy by exactly 1.0 percentage point. The 100% test accuracy achieved by classical Linear and RBF SVMs demonstrates that this 4D binary projection is linearly separable on this sample size, and should not be misinterpreted as 100% accuracy on full 10-class, 784-dimensional Fashion-MNIST or as quantum supremacy. Results are presented as a controlled pilot experiment.
 
 ---
 
-## 4. Hardware Noise Robustness
+## 4. Simulated NISQ Noise Robustness
 
-Performance retention under simulated depolarizing and readout noise (1,024 shots, Qiskit Aer):
+Performance retention under simulated depolarizing and readout noise (1,024 shots each on AerSimulator density matrix):
 
-| Architecture | Circuit Specs | Ideal Acc | Low Noise ($p_{1q}=0.05\%$) | Medium Noise ($p_{1q}=0.1\%$) | High Noise ($p_{1q}=0.5\%, p_{2q}=3\%$) | Retention Rate |
+| Architecture | Circuit Specs | Ideal Acc | Low Noise ($p_{1q}=0.05\%$) | Medium Noise ($p_{1q}=0.1\%$) | High Noise ($p_{1q}=0.5\%, p_{2q}=3\%$) | Retention Rate (High Noise) |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Baseline VQC** | Depth 12, 6 CX | 95.00% | 93.00% | 95.00% | 95.00% | **100.00%** |
-| **Search-Optimized VQC** | Depth 5, 0 CX | 96.00% | 95.00% | 95.00% | 91.00% | **94.79%** |
+| **Baseline VQC** | Depth 12, 6 CX | 95.00% | 93.00% | 90.00% | 87.00% | **91.58%** |
+| **Search-Optimized VQC (`arch_4169ee9360`)** | Depth 10, 1 CX | 90.00% | 89.00% | 90.00% | 89.00% | **98.89%** |
 
-Both architectures exhibit robust tolerance under noisy conditions, with >94.7% accuracy retention across all noise regimes.
+The search-optimized architecture demonstrates exceptional noise resilience under simulated NISQ conditions: under High Noise, the baseline VQC with 6 CX gates drops by 8.00% (down to 87.00%), whereas the search-optimized VQC with only 1 CX gate drops by only 1.00% (retaining 89.00% accuracy, a 98.89% retention rate). Under Medium Noise, the search-optimized VQC achieved 100.00% retention.
 
 ---
 
@@ -158,7 +170,7 @@ quantum-architecture-optimizer/
 │   ├── training/                   # Training history and callbacks
 │   ├── utils/                      # Config, logging, seed, system monitor
 │   └── visualization/              # Publication plotting routines
-├── tests/                          # 135 unit and integration tests (pytest)
+├── tests/                          # 136 unit and integration tests (pytest)
 ├── pyproject.toml                  # Package configuration & test flags
 ├── requirements.txt                # Pinned dependency manifest
 └── README.md                       # Project master documentation

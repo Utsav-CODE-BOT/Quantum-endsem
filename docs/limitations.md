@@ -51,18 +51,19 @@ This project makes **no claim of quantum advantage** over classical machine lear
 
 ---
 
-## 5. Dataset Subsetting & Subproblem Scale (360 Samples)
+## 5. Dataset Subsetting & Pilot Study Scope (360 Samples)
 
 The empirical validation was conducted on a controlled 360-sample partition:
 - **Partition:** 200 training samples, 60 validation samples, and 100 test samples.
 - **Task Scope:** Binary classification between Class 0 (T-shirt/top) and Class 9 (Ankle boot), compressed from 784 pixels to 4 orthogonal PCA components.
-- **Interpretation Boundary:** The 100.00% test accuracy of classical SVMs is an artifact of this linearly separable 4D binary projection on this sample size. It must not be extrapolated as 100% accuracy on the full 70,000-image, 10-class Fashion-MNIST benchmark. Scaling to higher dimensional representations and multi-class tasks remains future work.
+- **Interpretation Boundary:** With 100 test samples, each single classification outcome alters test accuracy by exactly 1.0 percentage point. The 100.00% test accuracy of classical SVMs is an artifact of this linearly separable 4D binary projection on this sample size. It must not be extrapolated as 100% accuracy on the full 70,000-image, 10-class Fashion-MNIST benchmark. The findings are presented as a controlled pilot experiment.
+- **Simulated NISQ Modeling:** All noise experiments represent classical simulations of hardware-inspired noise models via Qiskit Aer's density matrix simulator, not physical quantum device executions.
 
 ---
 
-## 6. Analysis of Zero Entangling (CX) Gates in the Optimal Architecture
+## 6. Analysis of Low-Entanglement and Zero-CX Architectures
 
-The evolutionary optimizer converged on an architecture (`arch_6327d7bcb8` / `arch_b137878901`) with 0 two-qubit entangling gates ($CX=0$):
-- **Expressive Sufficiency:** Because the 4 input features are orthogonal principal components derived from distinctly different visual classes (clothing top vs footwear), single-qubit rotation gates ($R_x, R_y$) on separable product states possess sufficient parameter flexibility to form an accurate decision boundary.
-- **Multi-Objective Trade-off:** The fitness function explicitly penalizes two-qubit gate count ($N_{2Q}/30$) and noise degradation ($f_{\text{rob}}$). Adding CX gates would increase depth and expose the circuit to two-qubit gate noise without providing marginal classification gain on this specific task.
-- **Implication:** The optimizer correctly behaved in a resource-aware manner by eliminating unneeded entangling overhead, reflecting realistic NISQ design principles where two-qubit gates are the costliest physical operations.
+The evolutionary optimizer converged on compact architectures (`arch_4169ee9360` with 1 CX gate and `arch_b137878901` with 0 CX gates):
+- **Empirical Grounding of Expressive Sufficiency:** While PCA produces orthogonal component directions, this mathematical property does not, by itself, theoretically prove that a non-entangling or low-entangling quantum circuit has sufficient expressive capacity for classification. Rather, our justification is empirical, grounded in the measured performance of the discovered architectures: on this 360-sample 4-feature dataset, compact circuits with minimal entangling operations achieved 90.00% to 96.00% test accuracy while dramatically cutting exposure to two-qubit gate noise.
+- **Multi-Objective Trade-off:** The fitness function explicitly penalizes two-qubit gate count ($N_{2Q}/30$) and noise degradation ($f_{\text{rob}}$). Introducing unnecessary CX gates increases depth and exposes the circuit to two-qubit gate noise without providing marginal classification gain on this specific task.
+- **Interpretation Scope:** The optimizer correctly behaved in a resource-aware manner by eliminating unneeded entangling overhead on this specific binary problem. Crucially, this task-specific result is an empirical observation and does not establish that entanglement is unnecessary in quantum machine learning generally or on more complex, higher-dimensional datasets.

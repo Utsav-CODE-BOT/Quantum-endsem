@@ -22,7 +22,7 @@
       "test_f1": 1.0,
       "test_roc_auc": 1.0,
       "training_time_seconds": 0.05,
-      "latency_ms_per_sample": 0.019
+      "latency_ms_per_sample": 0.022
     },
     {
       "model_name": "RBF SVM",
@@ -38,8 +38,8 @@
       "test_recall": 1.0,
       "test_f1": 1.0,
       "test_roc_auc": 1.0,
-      "training_time_seconds": 0.01,
-      "latency_ms_per_sample": 0.02
+      "training_time_seconds": 0.0,
+      "latency_ms_per_sample": 0.021
     },
     {
       "model_name": "Classical MLP",
@@ -55,8 +55,8 @@
       "test_recall": 0.4,
       "test_f1": 0.3961,
       "test_roc_auc": 0.402,
-      "training_time_seconds": 0.26,
-      "latency_ms_per_sample": 0.021
+      "training_time_seconds": 0.21,
+      "latency_ms_per_sample": 0.023
     },
     {
       "model_name": "Fixed Shallow VQC",
@@ -72,8 +72,8 @@
       "test_recall": 0.99,
       "test_f1": 0.99,
       "test_roc_auc": 1.0,
-      "training_time_seconds": 13.98,
-      "latency_ms_per_sample": 2.124
+      "training_time_seconds": 10.68,
+      "latency_ms_per_sample": 1.727
     },
     {
       "model_name": "Fixed Standard VQC",
@@ -89,8 +89,8 @@
       "test_recall": 0.95,
       "test_f1": 0.9499,
       "test_roc_auc": 0.9984,
-      "training_time_seconds": 26.58,
-      "latency_ms_per_sample": 3.737
+      "training_time_seconds": 21.27,
+      "latency_ms_per_sample": 3.206
     },
     {
       "model_name": "Fixed Deep VQC",
@@ -106,25 +106,25 @@
       "test_recall": 0.92,
       "test_f1": 0.9195,
       "test_roc_auc": 0.9956,
-      "training_time_seconds": 38.56,
-      "latency_ms_per_sample": 5.317
+      "training_time_seconds": 34.95,
+      "latency_ms_per_sample": 5.085
     },
     {
-      "model_name": "Optimized VQC (arch_b137878901)",
+      "model_name": "Optimized VQC (arch_4169ee9360)",
       "category": "Quantum Search",
-      "num_parameters": 16,
-      "circuit_depth": 5,
-      "total_gates": 20,
-      "two_qubit_gates": 0,
-      "val_accuracy": 0.9333,
-      "val_f1": 0.9333,
-      "test_accuracy": 0.96,
-      "test_precision": 0.96,
-      "test_recall": 0.96,
-      "test_f1": 0.96,
-      "test_roc_auc": 0.9872,
-      "training_time_seconds": 16.31,
-      "latency_ms_per_sample": 2.44
+      "num_parameters": 32,
+      "circuit_depth": 10,
+      "total_gates": 37,
+      "two_qubit_gates": 1,
+      "val_accuracy": 0.8833,
+      "val_f1": 0.8817,
+      "test_accuracy": 0.9,
+      "test_precision": 0.9105,
+      "test_recall": 0.9,
+      "test_f1": 0.8994,
+      "test_roc_auc": 0.9688,
+      "training_time_seconds": 23.17,
+      "latency_ms_per_sample": 3.4
     }
   ]
 }

@@ -9,10 +9,10 @@
     "num_parameters": 24
   },
   "optimized_architecture": {
-    "num_layers": 1,
-    "depth": 5,
-    "total_gates": 20,
-    "num_parameters": 16
+    "num_layers": 3,
+    "depth": 10,
+    "total_gates": 37,
+    "num_parameters": 32
   },
   "benchmarks": {
     "baseline": [
@@ -169,7 +169,7 @@
     ],
     "optimized": [
       {
-        "arch_id": "arch_b137878901",
+        "arch_id": "arch_4169ee9360",
         "noise_config": {
           "name": "Low_Noise",
           "single_qubit_error": 0.0005,
@@ -178,48 +178,48 @@
           "shots": 1024
         },
         "ideal_metrics": {
-          "accuracy": 0.96,
-          "precision_macro": 0.96,
-          "recall_macro": 0.96,
-          "f1_macro": 0.96,
+          "accuracy": 0.9,
+          "precision_macro": 0.9105090311986863,
+          "recall_macro": 0.8999999999999999,
+          "f1_macro": 0.8993558776167472,
           "confusion_matrix": [
             [
-              48,
-              2
+              41,
+              9
             ],
             [
-              2,
-              48
+              1,
+              49
             ]
           ],
-          "roc_auc": 0.9872,
+          "roc_auc": 0.9688000000000001,
           "num_samples": 100
         },
         "noisy_metrics": {
-          "accuracy": 0.95,
-          "precision_macro": 0.9501800720288115,
-          "recall_macro": 0.95,
-          "f1_macro": 0.9499949994999499,
+          "accuracy": 0.89,
+          "precision_macro": 0.9098360655737705,
+          "recall_macro": 0.89,
+          "f1_macro": 0.8886526976414617,
           "confusion_matrix": [
             [
-              47,
-              3
+              39,
+              11
             ],
             [
-              2,
-              48
+              0,
+              50
             ]
           ],
-          "roc_auc": 0.984,
+          "roc_auc": 0.9656,
           "num_samples": 100
         },
         "accuracy_drop": 0.01,
-        "f1_drop": 0.01,
-        "relative_accuracy_retention": 0.9896,
-        "noise_sensitivity_index": 0.0104
+        "f1_drop": 0.0107,
+        "relative_accuracy_retention": 0.9889,
+        "noise_sensitivity_index": 0.0111
       },
       {
-        "arch_id": "arch_b137878901",
+        "arch_id": "arch_4169ee9360",
         "noise_config": {
           "name": "Medium_Noise",
           "single_qubit_error": 0.001,
@@ -228,48 +228,48 @@
           "shots": 1024
         },
         "ideal_metrics": {
-          "accuracy": 0.96,
-          "precision_macro": 0.96,
-          "recall_macro": 0.96,
-          "f1_macro": 0.96,
+          "accuracy": 0.9,
+          "precision_macro": 0.9105090311986863,
+          "recall_macro": 0.8999999999999999,
+          "f1_macro": 0.8993558776167472,
           "confusion_matrix": [
             [
-              48,
-              2
+              41,
+              9
             ],
             [
-              2,
-              48
+              1,
+              49
             ]
           ],
-          "roc_auc": 0.9872,
+          "roc_auc": 0.9688000000000001,
           "num_samples": 100
         },
         "noisy_metrics": {
-          "accuracy": 0.95,
-          "precision_macro": 0.9501800720288115,
-          "recall_macro": 0.95,
-          "f1_macro": 0.9499949994999499,
+          "accuracy": 0.9,
+          "precision_macro": 0.9166666666666667,
+          "recall_macro": 0.9,
+          "f1_macro": 0.898989898989899,
           "confusion_matrix": [
             [
-              47,
-              3
+              40,
+              10
             ],
             [
-              2,
-              48
+              0,
+              50
             ]
           ],
-          "roc_auc": 0.9852,
+          "roc_auc": 0.9672,
           "num_samples": 100
         },
-        "accuracy_drop": 0.01,
-        "f1_drop": 0.01,
-        "relative_accuracy_retention": 0.9896,
-        "noise_sensitivity_index": 0.0104
+        "accuracy_drop": 0.0,
+        "f1_drop": 0.0004,
+        "relative_accuracy_retention": 1.0,
+        "noise_sensitivity_index": 0.0
       },
       {
-        "arch_id": "arch_b137878901",
+        "arch_id": "arch_4169ee9360",
         "noise_config": {
           "name": "High_Noise",
           "single_qubit_error": 0.005,
@@ -278,45 +278,45 @@
           "shots": 1024
         },
         "ideal_metrics": {
-          "accuracy": 0.96,
-          "precision_macro": 0.96,
-          "recall_macro": 0.96,
-          "f1_macro": 0.96,
+          "accuracy": 0.9,
+          "precision_macro": 0.9105090311986863,
+          "recall_macro": 0.8999999999999999,
+          "f1_macro": 0.8993558776167472,
           "confusion_matrix": [
             [
-              48,
-              2
+              41,
+              9
             ],
             [
-              2,
-              48
+              1,
+              49
             ]
           ],
-          "roc_auc": 0.9872,
+          "roc_auc": 0.9688000000000001,
           "num_samples": 100
         },
         "noisy_metrics": {
-          "accuracy": 0.91,
-          "precision_macro": 0.9101640656262505,
-          "recall_macro": 0.91,
-          "f1_macro": 0.90999099909991,
+          "accuracy": 0.89,
+          "precision_macro": 0.9030591153369161,
+          "recall_macro": 0.89,
+          "f1_macro": 0.8891017239641092,
           "confusion_matrix": [
             [
-              45,
-              5
+              40,
+              10
             ],
             [
-              4,
-              46
+              1,
+              49
             ]
           ],
-          "roc_auc": 0.9788000000000001,
+          "roc_auc": 0.9680000000000001,
           "num_samples": 100
         },
-        "accuracy_drop": 0.05,
-        "f1_drop": 0.05,
-        "relative_accuracy_retention": 0.9479,
-        "noise_sensitivity_index": 0.0521
+        "accuracy_drop": 0.01,
+        "f1_drop": 0.0103,
+        "relative_accuracy_retention": 0.9889,
+        "noise_sensitivity_index": 0.0111
       }
     ]
   }

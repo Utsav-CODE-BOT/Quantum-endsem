@@ -1,8 +1,8 @@
 {
-  "training_time_seconds": 75.62,
+  "training_time_seconds": 60.86,
   "total_evaluations": 100,
-  "seconds_per_evaluation": 0.7562,
-  "seconds_per_sample_evaluation": 0.003781,
+  "seconds_per_evaluation": 0.6086,
+  "seconds_per_sample_evaluation": 0.003043,
   "circuit_metadata": {
     "num_qubits": 4,
     "circuit_depth": 12,
@@ -53,5 +53,5 @@
     "roc_auc": 0.9992,
     "num_samples": 100
   },
-  "memory_ram_used_gb": 11.73
+  "memory_ram_used_gb": 11.17
 }

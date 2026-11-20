@@ -37,7 +37,7 @@ evolutionary_search:
     max_depth: 50
     max_cx_gates: 30
     # Performance: validation accuracy [0, 1]
-    # Noise robustness: 1.0 - max(0.0, (val_ideal - val_noisy) / max(val_ideal, 1e-4)) [0, 1]
+    # Noise robustness: min(1.0, max(0.0, val_noisy / max(val_ideal, 1e-4))) [0, 1]
     # Noise evaluation during search (Medium Noise NISQ tier, 1024 shots)
     noise:
       name: "Medium_Noise"

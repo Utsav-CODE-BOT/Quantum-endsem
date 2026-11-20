@@ -85,6 +85,9 @@ class FitnessCalculator:
     ) -> float:
         """Compute normalized noise robustness score in [0.0, 1.0].
 
+        Defined as:
+            R(A) = min(1.0, max(0.0, Acc_noisy(A) / max(Acc_val(A), 1e-4)))
+
         Args:
             ideal_accuracy: Validation accuracy without hardware noise.
             noisy_accuracy: Validation accuracy under simulated NISQ noise. If None (unmeasured
@@ -92,9 +95,9 @@ class FitnessCalculator:
         """
         if noisy_accuracy is None:
             return 0.0  # Missing or failed measurements receive zero robustness; never rewarded
-        drop = max(0.0, ideal_accuracy - noisy_accuracy)
-        relative_drop = drop / max(ideal_accuracy, 1e-4)
-        return float(max(0.0, min(1.0, 1.0 - relative_drop)))
+        denom = max(ideal_accuracy, 1e-4)
+        ratio = noisy_accuracy / denom
+        return float(min(1.0, max(0.0, ratio)))
 
     def evaluate(
         self,

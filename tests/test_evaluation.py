@@ -137,6 +137,20 @@ class TestArchitectureEvaluator:
         robustness = calc.calculate_robustness(ideal_accuracy=0.95, noisy_accuracy=None)
         assert robustness == 0.0
 
+    def test_robustness_bounded_between_zero_and_one(self) -> None:
+        """Verify R(A) = min(1.0, max(0.0, Acc_noisy / Acc_val)) upper and lower safeguards."""
+        calc = FitnessCalculator()
+        # Normal retention
+        assert calc.calculate_robustness(ideal_accuracy=0.90, noisy_accuracy=0.81) == pytest.approx(0.90)
+        # Safeguard: Noisy exceeds ideal -> clamped to 1.0 (never exceeds 1.0)
+        assert calc.calculate_robustness(ideal_accuracy=0.80, noisy_accuracy=0.85) == 1.0
+        # Safeguard: Noisy zero -> clamped to 0.0
+        assert calc.calculate_robustness(ideal_accuracy=0.80, noisy_accuracy=0.0) == 0.0
+        # Safeguard: Ideal zero handled without division by zero
+        assert calc.calculate_robustness(ideal_accuracy=0.0, noisy_accuracy=0.0) == 0.0
+        # Missing measurement returns 0.0
+        assert calc.calculate_robustness(ideal_accuracy=0.80, noisy_accuracy=None) == 0.0
+
     def test_evaluator_disqualifies_candidate_on_noise_failure(self, small_splits, monkeypatch) -> None:
         """Verify that when noise evaluation fails, candidate is disqualified (success=False, fitness=-1.0)."""
         from src.evaluation.noise_evaluator import NoiseEvaluator
