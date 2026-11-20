@@ -209,9 +209,19 @@ class SearchService:
                     if current_job._cancel_requested:
                         break
 
-                    evaluated_pop.sort(key=lambda c: c.fitness, reverse=True)
-                    gen_best = evaluated_pop[0]
-                    avg_fitness = float(np.mean([c.fitness for c in evaluated_pop]))
+                    # Exclude failed candidates from ranking and reproduction
+                    successful_pop = [c for c in evaluated_pop if c.success]
+                    if not successful_pop:
+                        err_msg = f"All candidate evaluations failed in generation {gen + 1}."
+                        logger.error(err_msg)
+                        with current_job.lock:
+                            current_job.status = "error"
+                            current_job.error_message = err_msg
+                        return
+
+                    successful_pop.sort(key=lambda c: c.fitness, reverse=True)
+                    gen_best = successful_pop[0]
+                    avg_fitness = float(np.mean([c.fitness for c in successful_pop]))
                     gen_time = time.perf_counter() - gen_start
 
                     rec = GenerationRecord(
@@ -231,11 +241,11 @@ class SearchService:
                     if gen == generations - 1:
                         break
 
-                    # Offspring generation
-                    next_configs = [evaluated_pop[0].config]  # Elitism = 1
+                    # Offspring generation from valid parents only
+                    next_configs = [successful_pop[0].config]  # Elitism = 1 from valid candidates
                     while len(next_configs) < pop_size:
-                        p1 = engine.selector.select_parent(evaluated_pop, engine.rng)
-                        p2 = engine.selector.select_parent(evaluated_pop, engine.rng)
+                        p1 = engine.selector.select_parent(successful_pop, engine.rng)
+                        p2 = engine.selector.select_parent(successful_pop, engine.rng)
                         c1, c2 = engine.crossover_op.crossover(p1.config, p2.config, engine.rng)
                         next_configs.append(engine.mutation_op.mutate(c1, engine.rng))
                         if len(next_configs) < pop_size:
@@ -250,34 +260,29 @@ class SearchService:
                         logger.info("Evolutionary search was cancelled gracefully.")
                         return
 
+                    if overall_best is None or not overall_best.success:
+                        current_job.status = "error"
+                        current_job.error_message = "No valid architecture candidate succeeded during search."
+                        logger.error(current_job.error_message)
+                        return
+
                     current_job.status = "completed"
                     current_job.elapsed_time_seconds = total_time
-                    if overall_best:
-                        current_job.final_result = overall_best.to_dict()
+                    current_job.final_result = overall_best.to_dict()
 
                 # Persist UI search results if successful and not cancelled
-                if overall_best is not None and generation_history:
+                if overall_best is not None and overall_best.success and generation_history:
                     try:
-                        all_evals = [c for gen in generation_history for c in gen.candidates]
                         search_result = EvolutionarySearchResult(
                             best_candidate=overall_best,
-                            total_generations=len(generation_history),
                             generation_history=generation_history,
-                            all_evaluated_candidates=all_evals,
-                            total_evaluations=len(all_evals),
+                            total_evaluations=evaluator.total_evaluations,
+                            unique_architectures_evaluated=len(evaluator.cache),
+                            cache_hits=evaluator.cache_hits,
                             total_runtime_seconds=round(total_time, 2),
-                            hyperparameters={
-                                "population_size": pop_size,
-                                "max_generations": generations,
-                                "maxiter": maxiter,
-                                "w_performance": w_perf,
-                                "w_complexity": w_comp,
-                                "w_robustness": w_rob,
-                                "crossover_rate": crossover_rate,
-                                "mutation_rate": mutation_rate,
-                                "tournament_size": tournament_size,
-                                "random_seed": random_seed,
-                            },
+                            converged=False,
+                            stop_reason="max_generations_reached",
+                            experiment_run_id="EXP-20261120-QNN-01",
                         )
                         hist_path = get_project_root() / "experiments" / "results" / "search_history.json"
                         search_result.save(hist_path)
@@ -293,11 +298,13 @@ class SearchService:
                             except Exception:
                                 pass
                         if should_update:
+                            arch_dict = overall_best.to_dict()
+                            arch_dict["experiment_run_id"] = "EXP-20261120-QNN-01"
                             with open(best_arch_path, "w", encoding="utf-8") as f:
-                                json.dump(overall_best.to_dict(), f, indent=2)
+                                json.dump(arch_dict, f, indent=2)
                         logger.info("Persisted UI search trajectory and best architecture successfully.")
                     except Exception as pe:
-                        logger.warning("Could not persist UI search results: %s", pe)
+                        logger.error("Could not persist UI search results: %s", pe)
 
             except Exception as e:
                 logger.error("Error in evolutionary search worker: %s", e)

@@ -1,4 +1,5 @@
 {
+  "experiment_run_id": "EXP-20261120-QNN-01",
   "best_candidate": {
     "arch_id": "arch_4169ee9360",
     "config": {

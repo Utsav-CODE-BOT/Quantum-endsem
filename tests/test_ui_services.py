@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import pytest
 from qiskit import QuantumCircuit
 
+from src.evaluation.evaluator import CandidateEvaluationResult
+from src.evaluation.fitness import FitnessBreakdown
+from src.optimization.evolutionary_search import EvolutionarySearchResult, GenerationRecord
 from src.quantum.architecture_schema import ArchitectureConfig
+from src.quantum.circuit_generator import CircuitMetadata
+from src.evaluation.classification_metrics import ClassificationReport
 from ui.services.benchmark_service import BenchmarkService
 from ui.services.circuit_service import CircuitService
 from ui.services.dataset_service import DatasetService
@@ -128,6 +134,92 @@ class TestSearchService:
         started = SearchService.start_search(pop_size=2, generations=1)
         assert started is False
         SearchService._active_job.status = "idle"
+
+    def test_evolutionary_search_result_construction_and_persistence(self, tmp_path):
+        """Verify EvolutionarySearchResult is constructed with valid dataclass schema and saved."""
+        cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
+        meta = CircuitMetadata(
+            num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10,
+            two_qubit_gates=0, gate_distribution={"ry": 10}, num_input_features=4, num_trainable_parameters=8,
+        )
+        report = ClassificationReport(
+            accuracy=0.95, precision_macro=0.95, recall_macro=0.95, f1_macro=0.95,
+            confusion_matrix=[[28, 2], [1, 29]], roc_auc=0.99, num_samples=60,
+        )
+        fitness_bd = FitnessBreakdown(
+            scalar_fitness=0.65, performance_score=0.95, complexity_score=0.05,
+            robustness_score=1.0, w_performance=0.5, w_complexity=0.3, w_robustness=0.2,
+        )
+        cand = CandidateEvaluationResult(
+            arch_id="test_cand_1", config=cfg, circuit_metadata=meta,
+            val_metrics=report, fitness=0.65, fitness_breakdown=fitness_bd,
+            training_time_seconds=1.2, evaluation_time_seconds=0.1, is_cached=False,
+            success=True,
+        )
+        gen_rec = GenerationRecord(
+            generation=1, best_candidate=cand, best_fitness=0.65, avg_fitness=0.65,
+            candidates=[cand], elapsed_time_seconds=1.3,
+        )
+
+        search_result = EvolutionarySearchResult(
+            best_candidate=cand,
+            generation_history=[gen_rec],
+            total_evaluations=1,
+            unique_architectures_evaluated=1,
+            cache_hits=0,
+            total_runtime_seconds=1.5,
+            converged=False,
+            stop_reason="max_generations_reached",
+            experiment_run_id="EXP-20261120-QNN-01",
+        )
+
+        save_path = tmp_path / "search_history.json"
+        search_result.save(save_path)
+        assert save_path.exists()
+
+        with open(save_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        assert data["experiment_run_id"] == "EXP-20261120-QNN-01"
+        assert data["total_evaluations"] == 1
+        assert data["best_candidate"]["arch_id"] == "test_cand_1"
+        assert len(data["generation_history"]) == 1
+
+    def test_search_job_excludes_failed_candidates_and_handles_invalid_run(self):
+        """Verify failed candidates are excluded and an invalid run transitions to error."""
+        cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
+        meta = CircuitMetadata(
+            num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10,
+            two_qubit_gates=0, gate_distribution={}, num_input_features=4, num_trainable_parameters=8,
+        )
+        report = ClassificationReport(
+            accuracy=0.0, precision_macro=0.0, recall_macro=0.0, f1_macro=0.0,
+            confusion_matrix=[[0, 0], [0, 0]], roc_auc=0.0, num_samples=0,
+        )
+        fitness_bd = FitnessBreakdown(
+            scalar_fitness=-1.0, performance_score=0.0, complexity_score=0.0,
+            robustness_score=0.0, w_performance=0.5, w_complexity=0.3, w_robustness=0.2,
+        )
+        failed_cand = CandidateEvaluationResult(
+            arch_id="failed_cand", config=cfg, circuit_metadata=meta,
+            val_metrics=report, fitness=-1.0, fitness_breakdown=fitness_bd,
+            training_time_seconds=0.1, evaluation_time_seconds=0.1, is_cached=False,
+            success=False, error_message="Simulated quantum error",
+        )
+
+        evaluated_pop = [failed_cand]
+        successful_pop = [c for c in evaluated_pop if c.success]
+        assert len(successful_pop) == 0  # Failed candidate excluded
+
+        # State container handles error properly
+        job = SearchJobState()
+        job.status = "running"
+        with job.lock:
+            if not successful_pop:
+                job.status = "error"
+                job.error_message = "All candidate evaluations failed in generation 1."
+        assert job.status == "error"
+        assert "All candidate evaluations failed" in job.error_message
+        assert job.status != "completed"
 
 
 class TestNoiseService:

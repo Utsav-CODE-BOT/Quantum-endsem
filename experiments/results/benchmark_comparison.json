@@ -1,4 +1,5 @@
 {
+  "experiment_run_id": "EXP-20261120-QNN-01",
   "task": "Fashion-MNIST Binary Classification (0: T-shirt vs 9: Ankle Boot)",
   "num_features": 4,
   "split_sizes": {

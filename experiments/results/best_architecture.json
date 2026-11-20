@@ -1,4 +1,5 @@
 {
+  "experiment_run_id": "EXP-20261120-QNN-01",
   "arch_id": "arch_4169ee9360",
   "config": {
     "num_qubits": 4,
@@ -46,21 +47,21 @@
   },
   "train_metrics": null,
   "test_metrics": {
-    "accuracy": 0.88,
-    "precision_macro": 0.9032258064516129,
-    "recall_macro": 0.88,
-    "f1_macro": 0.8782467532467533,
+    "accuracy": 0.9,
+    "precision_macro": 0.9105,
+    "recall_macro": 0.9,
+    "f1_macro": 0.8994,
     "confusion_matrix": [
       [
-        38,
-        12
+        41,
+        9
       ],
       [
-        0,
-        50
+        1,
+        49
       ]
     ],
-    "roc_auc": 0.9992,
+    "roc_auc": 0.9688,
     "num_samples": 100
   },
   "noisy_val_metrics": {

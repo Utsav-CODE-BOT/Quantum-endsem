@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![Qiskit](https://img.shields.io/badge/Qiskit-1.4.2-613394.svg)](https://qiskit.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing%20(136%2F136)-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing%20(139%2F139)-brightgreen.svg)](tests/)
 
 An end-to-end, research-grade quantum machine learning framework developed in Python and Qiskit that automates the discovery, optimization, and evaluation of **Variational Quantum Classifiers (VQCs)**.
 
@@ -170,7 +170,7 @@ quantum-architecture-optimizer/
 │   ├── training/                   # Training history and callbacks
 │   ├── utils/                      # Config, logging, seed, system monitor
 │   └── visualization/              # Publication plotting routines
-├── tests/                          # 136 unit and integration tests (pytest)
+├── tests/                          # 139 unit and integration tests (pytest)
 ├── pyproject.toml                  # Package configuration & test flags
 ├── requirements.txt                # Pinned dependency manifest
 └── README.md                       # Project master documentation

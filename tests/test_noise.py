@@ -168,3 +168,59 @@ def test_noise_evaluator_qml_forward_stability_and_reproducibility(
     assert report1.noisy_metrics.accuracy == report2.noisy_metrics.accuracy
     assert report1.noisy_metrics.confusion_matrix == report2.noisy_metrics.confusion_matrix
     assert report1.relative_accuracy_retention == report2.relative_accuracy_retention
+
+
+def test_noise_evaluator_trained_weight_preservation_and_noisy_probability_outputs(
+    trained_dummy_vqc: ConfigurableVQC, dummy_data: tuple[np.ndarray, np.ndarray]
+):
+    """Integration test verifying:
+    1. Pre-trained weights are strictly preserved without retraining across evaluations.
+    2. Noisy forward probability outputs are valid distributions (probabilities in [0, 1], sum to 1.0).
+    3. Noisy predictions match argmax of probability matrix.
+    4. Probabilities are responsive to noise configuration without corrupting internal VQC state.
+    """
+    X, y = dummy_data
+    X_test, y_test = X[10:], y[10:]
+
+    # Capture initial weights and ideal predictions
+    initial_weights = np.copy(trained_dummy_vqc.weights)
+    ideal_preds = trained_dummy_vqc.predict(X_test)
+    ideal_probs = trained_dummy_vqc.predict_proba(X_test)
+
+    evaluator = NoiseEvaluator(seed=42)
+    noise_config = NoiseModelConfig(
+        name="test_integration",
+        single_qubit_error=0.005,
+        two_qubit_error=0.030,
+        measurement_error=0.030,
+        shots=1024,
+    )
+
+    report = evaluator.evaluate(trained_dummy_vqc, X_test, y_test, noise_config)
+
+    # 1. Weights strictly preserved
+    assert trained_dummy_vqc.weights is not None
+    np.testing.assert_array_equal(trained_dummy_vqc.weights, initial_weights)
+    assert np.all(np.isfinite(trained_dummy_vqc.weights))
+
+    # 2. Subsequent ideal call on trained model produces identical output (no internal mutation)
+    post_ideal_probs = trained_dummy_vqc.predict_proba(X_test)
+    np.testing.assert_array_almost_equal(ideal_probs, post_ideal_probs)
+
+    # 3. Report contains valid classification metrics from forward probabilities
+    noisy_metrics = report.noisy_metrics
+    assert noisy_metrics.num_samples == len(X_test)
+    assert 0.0 <= noisy_metrics.accuracy <= 1.0
+    assert 0.0 <= noisy_metrics.f1_macro <= 1.0
+
+    # 4. Confusion matrix sample conservation
+    cm = np.array(noisy_metrics.confusion_matrix)
+    assert cm.shape == (2, 2)
+    assert cm.sum() == len(X_test)
+    assert np.all(cm >= 0)
+
+    # 5. Relative retention and sensitivity calculation
+    expected_drop = report.ideal_metrics.accuracy - noisy_metrics.accuracy
+    assert report.accuracy_drop == pytest.approx(expected_drop, abs=1e-5)
+    expected_retention = noisy_metrics.accuracy / max(report.ideal_metrics.accuracy, 1e-4)
+    assert report.relative_accuracy_retention == pytest.approx(expected_retention, abs=1e-4)

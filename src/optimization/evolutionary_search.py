@@ -69,9 +69,11 @@ class EvolutionarySearchResult:
     total_runtime_seconds: float
     converged: bool
     stop_reason: str
+    experiment_run_id: str = "EXP-20261120-QNN-01"
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "experiment_run_id": self.experiment_run_id,
             "best_candidate": self.best_candidate.to_dict(),
             "generation_history": [g.to_dict() for g in self.generation_history],
             "total_evaluations": self.total_evaluations,

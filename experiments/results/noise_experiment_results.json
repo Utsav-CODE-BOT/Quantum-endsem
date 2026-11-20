@@ -1,4 +1,5 @@
 {
+  "experiment_run_id": "EXP-20261120-QNN-01",
   "dataset": "Fashion-MNIST (0: T-shirt vs 9: Ankle Boot)",
   "features": 4,
   "test_samples": 100,
