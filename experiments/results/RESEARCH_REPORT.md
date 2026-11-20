@@ -16,7 +16,7 @@ This study investigated whether automated multi-objective evolutionary architect
 Key empirical findings:
 1. **Resource Reduction:** The evolutionary search engine discovered an optimized candidate (`arch_4169ee9360`) that reduced two-qubit CX gate count by **83.3%** (from 6 to 1) and circuit depth from 12 to 10 compared to the standard 2-layer baseline.
 2. **Predictive Performance & Pilot Scale:** The search-optimized VQC achieved **90.00% test accuracy** (with 88.33% validation accuracy) on Fashion-MNIST under a controlled 360-sample partition (200 train, 60 validation, 100 test).
-3. **Noise Tolerance:** Under simulated depolarizing and readout noise (Qiskit Aer `density_matrix` simulation, 1024 shots), the search-optimized architecture demonstrated **98.89% to 100.00% accuracy retention** across Low, Medium, and High error regimes ($p_{1q}=0.5\%, p_{2q}=3.0\%, p_{\text{meas}}=3.0\%$). Under High Noise, the baseline VQC with 6 CX gates dropped to 87.00% (-8.00% drop), whereas the search-optimized model with 1 CX gate retained 89.00% accuracy (-1.00% drop). *(Note: All experiments represent classical simulations of hardware-inspired noise models, not physical quantum device executions.)*
+3. **Noise Tolerance:** Under simulated depolarizing and readout noise (Qiskit Aer `density_matrix` simulation, 1024 shots), both architectures demonstrated high noise tolerance. The baseline VQC achieved 93.00% (Low), 95.00% (Medium), and 95.00% (High) accuracy (100.00% retention at High Noise). The search-optimized VQC achieved 89.00% (Low), 90.00% (Medium), and 89.00% (High) accuracy (98.89% retention at High Noise). The optimized VQC does not claim higher noise retention than baseline; rather, its demonstrated benefit is sustaining 98.89% retention under high noise while cutting two-qubit CX gates by 83.3% (1 CX vs 6 CX) and depth by 16.7% (10 vs 12). *(Note: All experiments represent classical simulations of hardware-inspired noise models, not physical quantum device executions.)*
 
 ---
 
@@ -41,8 +41,8 @@ Evaluation across realistic NISQ noise regimes (1024 shots, Qiskit Aer):
 | Model | Noise Regime | 1Q Error | 2Q Error | Readout Error | Ideal Acc | Noisy Acc | Acc Drop | Retention |
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | Baseline VQC | Low_Noise | 0.05% | 0.50% | 0.50% | 95.00% | 93.00% | +2.00% | **97.89%** |
-| Baseline VQC | Medium_Noise | 0.10% | 1.00% | 1.50% | 95.00% | 90.00% | +5.00% | **94.74%** |
-| Baseline VQC | High_Noise | 0.50% | 3.00% | 3.00% | 95.00% | 87.00% | +8.00% | **91.58%** |
+| Baseline VQC | Medium_Noise | 0.10% | 1.00% | 1.50% | 95.00% | 95.00% | +0.00% | **100.00%** |
+| Baseline VQC | High_Noise | 0.50% | 3.00% | 3.00% | 95.00% | 95.00% | +0.00% | **100.00%** |
 | Optimized VQC | Low_Noise | 0.05% | 0.50% | 0.50% | 90.00% | 89.00% | +1.00% | **98.89%** |
 | Optimized VQC | Medium_Noise | 0.10% | 1.00% | 1.50% | 90.00% | 90.00% | +0.00% | **100.00%** |
 | Optimized VQC | High_Noise | 0.50% | 3.00% | 3.00% | 90.00% | 89.00% | +1.00% | **98.89%** |

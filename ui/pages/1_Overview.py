@@ -110,9 +110,66 @@ else:
     prep_icon = "🔴"
 
 # 4. Test suite status
-pytest_cache = PROJECT_ROOT / ".pytest_cache"
-test_icon = "🟢" if pytest_cache.exists() else "🟡"
-test_text = "139/139 Passing" if pytest_cache.exists() else "Not Executed"
+test_report_path = PROJECT_ROOT / "experiments" / "results" / "test_report.json"
+current_git_commit = ""
+try:
+    import subprocess
+    git_res = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=str(PROJECT_ROOT),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if git_res.returncode == 0:
+        current_git_commit = git_res.stdout.strip()
+except Exception:
+    pass
+
+if test_report_path.exists():
+    try:
+        with open(test_report_path, "r", encoding="utf-8") as f:
+            test_report = json.load(f)
+        rep_commit = test_report.get("git_commit", "")
+        rep_passed = test_report.get("passed", 0)
+        rep_total = test_report.get("total", 0)
+        rep_failed = test_report.get("failed", 0)
+        rep_exit = test_report.get("exit_code", -1)
+
+        is_current = (rep_commit == current_git_commit)
+        if not is_current and rep_commit and current_git_commit:
+            try:
+                diff_res = subprocess.run(
+                    ["git", "diff", "--name-only", rep_commit, "HEAD"],
+                    cwd=str(PROJECT_ROOT),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if diff_res.returncode == 0:
+                    changed_files = [f.strip() for f in diff_res.stdout.splitlines() if f.strip()]
+                    if not changed_files or all(f in ("experiments/results/test_report.json", "ui/pages/1_Overview.py", "README.md") or f.startswith("experiments/results/") for f in changed_files):
+                        is_current = True
+            except Exception:
+                pass
+
+        if rep_exit == 0 and rep_failed == 0:
+            if not is_current and current_git_commit and rep_commit:
+                test_icon = "🟡"
+                test_text = f"Outdated ({rep_commit} vs {current_git_commit})"
+            else:
+                commit_label = f" ({rep_commit})" if rep_commit and rep_commit != "unknown" else ""
+                test_icon = "🟢"
+                test_text = f"{rep_passed}/{rep_total} Passing{commit_label}"
+        else:
+            test_icon = "🔴"
+            test_text = f"{rep_failed} Failed"
+    except Exception:
+        test_icon = "🔴"
+        test_text = "Report Parse Error"
+else:
+    test_icon = "🟡"
+    test_text = "No Report (Run pytest)"
 
 # 5. Saved experiment results loaded
 results_dir = PROJECT_ROOT / "experiments" / "results"
@@ -154,7 +211,7 @@ exp_run_id = (
     or benchmarks.get("experiment_run_id")
     or noise_data.get("experiment_run_id")
     or baseline_data.get("experiment_run_id")
-    or "EXP-20261120-QNN-01"
+    or "Unknown run ID"
 )
 
 # Extract real metrics

@@ -19,6 +19,7 @@ from src.optimization.evolutionary_search import (
     GenerationRecord,
 )
 from src.utils.config_loader import get_project_root
+from src.utils.experiment_id import generate_experiment_id
 from src.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -42,6 +43,9 @@ class SearchJobState:
         self.final_result: dict[str, Any] | None = None
         self.error_message: str = ""
         self._cancel_requested: bool = False
+        self.experiment_run_id: str = ""
+        self.persistence_status: str = "idle"  # "idle" | "persisting" | "persisted" | "failed" | "not_persisted"
+        self.persistence_error: str = ""
 
     def update_generation(self, record: GenerationRecord, total_gens: int) -> None:
         with self.lock:
@@ -67,6 +71,9 @@ class SearchJobState:
                 "evaluated_candidates": list(self.evaluated_candidates),
                 "final_result": self.final_result,
                 "error_message": self.error_message,
+                "experiment_run_id": self.experiment_run_id,
+                "persistence_status": self.persistence_status,
+                "persistence_error": self.persistence_error,
             }
 
 
@@ -132,6 +139,7 @@ class SearchService:
         mutation_rate: float = 0.30,
         tournament_size: int = 2,
         random_seed: int = 42,
+        experiment_run_id: str | None = None,
     ) -> bool:
         """Launch background evolutionary architecture search with dedicated job state."""
         with cls._lock:
@@ -144,9 +152,11 @@ class SearchService:
                     return False
 
             # Create an independent state container for this specific search run
+            run_id = experiment_run_id or generate_experiment_id()
             job = SearchJobState()
             job.status = "running"
             job.total_generations = generations
+            job.experiment_run_id = run_id
             cls._active_job = job
 
         def _worker(current_job: SearchJobState) -> None:
@@ -256,12 +266,14 @@ class SearchService:
                 with current_job.lock:
                     if current_job._cancel_requested:
                         current_job.status = "cancelled"
+                        current_job.persistence_status = "not_persisted"
                         current_job.elapsed_time_seconds = total_time
                         logger.info("Evolutionary search was cancelled gracefully.")
                         return
 
                     if overall_best is None or not overall_best.success:
                         current_job.status = "error"
+                        current_job.persistence_status = "not_persisted"
                         current_job.error_message = "No valid architecture candidate succeeded during search."
                         logger.error(current_job.error_message)
                         return
@@ -272,6 +284,8 @@ class SearchService:
 
                 # Persist UI search results if successful and not cancelled
                 if overall_best is not None and overall_best.success and generation_history:
+                    with current_job.lock:
+                        current_job.persistence_status = "persisting"
                     try:
                         search_result = EvolutionarySearchResult(
                             best_candidate=overall_best,
@@ -282,7 +296,7 @@ class SearchService:
                             total_runtime_seconds=round(total_time, 2),
                             converged=False,
                             stop_reason="max_generations_reached",
-                            experiment_run_id="EXP-20261120-QNN-01",
+                            experiment_run_id=current_job.experiment_run_id,
                         )
                         hist_path = get_project_root() / "experiments" / "results" / "search_history.json"
                         search_result.save(hist_path)
@@ -293,17 +307,24 @@ class SearchService:
                             try:
                                 with open(best_arch_path, "r", encoding="utf-8") as f:
                                     curr = json.load(f)
-                                if curr.get("fitness", 0) > overall_best.fitness:
+                                if curr.get("fitness", -1.0) > overall_best.fitness:
                                     should_update = False
+                                    logger.info("Existing best architecture on disk has higher fitness (%.4f > %.4f); not overwriting.", curr.get("fitness", 0), overall_best.fitness)
                             except Exception:
                                 pass
                         if should_update:
                             arch_dict = overall_best.to_dict()
-                            arch_dict["experiment_run_id"] = "EXP-20261120-QNN-01"
+                            arch_dict["experiment_run_id"] = current_job.experiment_run_id
                             with open(best_arch_path, "w", encoding="utf-8") as f:
                                 json.dump(arch_dict, f, indent=2)
+
+                        with current_job.lock:
+                            current_job.persistence_status = "persisted"
                         logger.info("Persisted UI search trajectory and best architecture successfully.")
                     except Exception as pe:
+                        with current_job.lock:
+                            current_job.persistence_status = "failed"
+                            current_job.persistence_error = str(pe)
                         logger.error("Could not persist UI search results: %s", pe)
 
             except Exception as e:

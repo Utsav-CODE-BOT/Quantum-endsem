@@ -1,6 +1,7 @@
 """Utility package for the Quantum Architecture Optimizer."""
 
 from src.utils.config_loader import ConfigManager, get_project_root, load_yaml
+from src.utils.experiment_id import compute_weights_hash, generate_experiment_id
 from src.utils.logging_config import get_logger, setup_logging
 from src.utils.seed_manager import SeedManager
 from src.utils.system_monitor import (
@@ -12,6 +13,8 @@ from src.utils.system_monitor import (
 
 __all__ = [
     "ConfigManager",
+    "generate_experiment_id",
+    "compute_weights_hash",
     "get_project_root",
     "load_yaml",
     "get_logger",

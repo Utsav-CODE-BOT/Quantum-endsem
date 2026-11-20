@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![Qiskit](https://img.shields.io/badge/Qiskit-1.4.2-613394.svg)](https://qiskit.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing%20(139%2F139)-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing%20(143%2F143)-brightgreen.svg)](tests/)
 
 An end-to-end, research-grade quantum machine learning framework developed in Python and Qiskit that automates the discovery, optimization, and evaluation of **Variational Quantum Classifiers (VQCs)**.
 
@@ -112,10 +112,10 @@ Performance retention under simulated depolarizing and readout noise (1,024 shot
 
 | Architecture | Circuit Specs | Ideal Acc | Low Noise ($p_{1q}=0.05\%$) | Medium Noise ($p_{1q}=0.1\%$) | High Noise ($p_{1q}=0.5\%, p_{2q}=3\%$) | Retention Rate (High Noise) |
 |:---|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Baseline VQC** | Depth 12, 6 CX | 95.00% | 93.00% | 90.00% | 87.00% | **91.58%** |
+| **Baseline VQC** | Depth 12, 6 CX | 95.00% | 93.00% | 95.00% | 95.00% | **100.00%** |
 | **Search-Optimized VQC (`arch_4169ee9360`)** | Depth 10, 1 CX | 90.00% | 89.00% | 90.00% | 89.00% | **98.89%** |
 
-The search-optimized architecture demonstrates exceptional noise resilience under simulated NISQ conditions: under High Noise, the baseline VQC with 6 CX gates drops by 8.00% (down to 87.00%), whereas the search-optimized VQC with only 1 CX gate drops by only 1.00% (retaining 89.00% accuracy, a 98.89% retention rate). Under Medium Noise, the search-optimized VQC achieved 100.00% retention.
+Under simulated NISQ conditions (AerSimulator density matrix, 1,024 shots), both architectures demonstrate strong resilience on this 4D classification task. The baseline VQC achieved 93.00% (Low), 95.00% (Medium), and 95.00% (High) accuracy (100.00% retention). The search-optimized VQC achieved 89.00% (Low), 90.00% (Medium), and 89.00% (High) accuracy (98.89% retention). The optimized VQC does not claim superior noise retention over the baseline; rather, its demonstrated advantage lies in sustaining 98.89% retention under high noise while cutting two-qubit CX gates by 83.3% (1 CX vs 6 CX) and depth by 16.7% (10 vs 12). *(Note: All experiments represent classical simulations of hardware-inspired noise models, not physical quantum device executions, and no quantum supremacy or superiority over classical SVMs is claimed.)*
 
 ---
 

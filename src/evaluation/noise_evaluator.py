@@ -50,6 +50,8 @@ class NoiseEvaluationReport:
     f1_drop: float  # ideal_f1 - noisy_f1
     relative_accuracy_retention: float  # noisy_acc / max(ideal_acc, 1e-6)
     noise_sensitivity_index: float  # relative drop
+    noisy_probabilities: np.ndarray | None = None
+    ideal_probabilities: np.ndarray | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -201,6 +203,8 @@ class NoiseEvaluator:
             f1_drop=f1_drop,
             relative_accuracy_retention=retention,
             noise_sensitivity_index=sensitivity,
+            noisy_probabilities=noisy_probs,
+            ideal_probabilities=ideal_probs,
         )
 
         logger.info(

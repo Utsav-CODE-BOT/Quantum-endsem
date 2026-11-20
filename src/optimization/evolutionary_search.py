@@ -28,6 +28,7 @@ from src.optimization.crossover import ArchitectureCrossover
 from src.optimization.mutation import ArchitectureMutation
 from src.optimization.selection import TournamentSelection
 from src.quantum.architecture_schema import ArchitectureConfig
+from src.utils.experiment_id import generate_experiment_id
 from src.utils.logging_config import get_logger
 from src.utils.seed_manager import SeedManager
 
@@ -69,7 +70,7 @@ class EvolutionarySearchResult:
     total_runtime_seconds: float
     converged: bool
     stop_reason: str
-    experiment_run_id: str = "EXP-20261120-QNN-01"
+    experiment_run_id: str = field(default_factory=generate_experiment_id)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -108,6 +109,7 @@ class EvolutionarySearchEngine:
         tournament_size: int = 3,
         space: ArchitectureSpace | None = None,
         seed_manager: SeedManager | None = None,
+        experiment_run_id: str | None = None,
     ) -> None:
         """Initialize evolutionary search engine.
 
@@ -119,10 +121,12 @@ class EvolutionarySearchEngine:
             stagnation_limit: Stop if best fitness does not improve for N generations.
             crossover_rate: Probability of crossover.
             mutation_rate: Probability of mutation.
-            tournament_size: Size of tournament for parent selection.
+            tournament_size: Tournament selection size.
             space: ArchitectureSpace definition.
             seed_manager: SeedManager for reproducibility.
+            experiment_run_id: Optional unique experiment execution ID. If None, generated.
         """
+        self.experiment_run_id = experiment_run_id or generate_experiment_id()
         self.evaluator = evaluator
         self.pop_size = max(population_size, 2)
         self.max_generations = max_generations
@@ -258,6 +262,7 @@ class EvolutionarySearchEngine:
             total_runtime_seconds=round(total_runtime, 2),
             converged=converged,
             stop_reason=stop_reason,
+            experiment_run_id=self.experiment_run_id,
         )
 
         logger.info(

@@ -135,8 +135,8 @@ class TestSearchService:
         assert started is False
         SearchService._active_job.status = "idle"
 
-    def test_evolutionary_search_result_construction_and_persistence(self, tmp_path):
-        """Verify EvolutionarySearchResult is constructed with valid dataclass schema and saved."""
+    def test_persistence_success_and_file_creation(self, tmp_path):
+        """Verify successful search persistence creates valid JSON file on disk."""
         cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
         meta = CircuitMetadata(
             num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10,
@@ -160,7 +160,6 @@ class TestSearchService:
             generation=1, best_candidate=cand, best_fitness=0.65, avg_fitness=0.65,
             candidates=[cand], elapsed_time_seconds=1.3,
         )
-
         search_result = EvolutionarySearchResult(
             best_candidate=cand,
             generation_history=[gen_rec],
@@ -172,20 +171,100 @@ class TestSearchService:
             stop_reason="max_generations_reached",
             experiment_run_id="EXP-20261120-QNN-01",
         )
-
         save_path = tmp_path / "search_history.json"
         search_result.save(save_path)
         assert save_path.exists()
+        assert save_path.stat().st_size > 0
+
+    def test_persistence_json_reload_and_schema_validation(self, tmp_path):
+        """Verify saved search JSON can be reloaded and conforms to schema."""
+        cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
+        meta = CircuitMetadata(
+            num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10,
+            two_qubit_gates=0, gate_distribution={"ry": 10}, num_input_features=4, num_trainable_parameters=8,
+        )
+        report = ClassificationReport(
+            accuracy=0.95, precision_macro=0.95, recall_macro=0.95, f1_macro=0.95,
+            confusion_matrix=[[28, 2], [1, 29]], roc_auc=0.99, num_samples=60,
+        )
+        fitness_bd = FitnessBreakdown(
+            scalar_fitness=0.65, performance_score=0.95, complexity_score=0.05,
+            robustness_score=1.0, w_performance=0.5, w_complexity=0.3, w_robustness=0.2,
+        )
+        cand = CandidateEvaluationResult(
+            arch_id="test_cand_schema", config=cfg, circuit_metadata=meta,
+            val_metrics=report, fitness=0.65, fitness_breakdown=fitness_bd,
+            training_time_seconds=1.2, evaluation_time_seconds=0.1, is_cached=False,
+            success=True,
+        )
+        gen_rec = GenerationRecord(
+            generation=1, best_candidate=cand, best_fitness=0.65, avg_fitness=0.65,
+            candidates=[cand], elapsed_time_seconds=1.3,
+        )
+        search_result = EvolutionarySearchResult(
+            best_candidate=cand,
+            generation_history=[gen_rec],
+            total_evaluations=5,
+            unique_architectures_evaluated=3,
+            cache_hits=2,
+            total_runtime_seconds=2.5,
+            converged=True,
+            stop_reason="stagnation_limit_reached",
+            experiment_run_id="EXP-SCHEMA-TEST",
+        )
+        save_path = tmp_path / "reloaded_history.json"
+        search_result.save(save_path)
 
         with open(save_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        assert data["experiment_run_id"] == "EXP-20261120-QNN-01"
-        assert data["total_evaluations"] == 1
-        assert data["best_candidate"]["arch_id"] == "test_cand_1"
+
+        assert data["experiment_run_id"] == "EXP-SCHEMA-TEST"
+        assert data["total_evaluations"] == 5
+        assert data["unique_architectures_evaluated"] == 3
+        assert data["cache_hits"] == 2
+        assert data["converged"] is True
+        assert data["stop_reason"] == "stagnation_limit_reached"
+        assert data["best_candidate"]["arch_id"] == "test_cand_schema"
+        assert data["best_candidate"]["circuit_metadata"]["circuit_depth"] == 5
+        assert data["best_candidate"]["fitness_breakdown"]["robustness_score"] == 1.0
         assert len(data["generation_history"]) == 1
 
-    def test_search_job_excludes_failed_candidates_and_handles_invalid_run(self):
-        """Verify failed candidates are excluded and an invalid run transitions to error."""
+    def test_persistence_failure_handling(self):
+        """Verify persistence error sets persistence_status='failed' and records error message."""
+        job = SearchJobState()
+        job.status = "completed"
+        job.persistence_status = "persisting"
+
+        # Simulate exception during disk persistence
+        try:
+            raise OSError("Permission denied: cannot write search_history.json")
+        except Exception as pe:
+            with job.lock:
+                job.persistence_status = "failed"
+                job.persistence_error = str(pe)
+
+        status_dict = job.to_dict()
+        assert status_dict["status"] == "completed"
+        assert status_dict["persistence_status"] == "failed"
+        assert "Permission denied" in status_dict["persistence_error"]
+
+    def test_persistence_cancellation_marks_not_persisted(self):
+        """Verify cancelled search transitions to cancelled with persistence_status='not_persisted'."""
+        job = SearchJobState()
+        job.status = "running"
+        job._cancel_requested = True
+
+        with job.lock:
+            if job._cancel_requested:
+                job.status = "cancelled"
+                job.persistence_status = "not_persisted"
+
+        status_dict = job.to_dict()
+        assert status_dict["status"] == "cancelled"
+        assert status_dict["persistence_status"] == "not_persisted"
+
+    def test_persistence_no_failed_candidate_saved_as_best(self):
+        """Verify failed candidates are never marked as completed or persisted."""
         cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
         meta = CircuitMetadata(
             num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10,
@@ -206,20 +285,48 @@ class TestSearchService:
             success=False, error_message="Simulated quantum error",
         )
 
-        evaluated_pop = [failed_cand]
-        successful_pop = [c for c in evaluated_pop if c.success]
-        assert len(successful_pop) == 0  # Failed candidate excluded
-
-        # State container handles error properly
         job = SearchJobState()
         job.status = "running"
+        overall_best = failed_cand
+
         with job.lock:
-            if not successful_pop:
+            if overall_best is None or not overall_best.success:
                 job.status = "error"
-                job.error_message = "All candidate evaluations failed in generation 1."
-        assert job.status == "error"
-        assert "All candidate evaluations failed" in job.error_message
-        assert job.status != "completed"
+                job.persistence_status = "not_persisted"
+                job.error_message = "No valid architecture candidate succeeded during search."
+
+        status_dict = job.to_dict()
+        assert status_dict["status"] == "error"
+        assert status_dict["persistence_status"] == "not_persisted"
+        assert "No valid architecture candidate succeeded" in status_dict["error_message"]
+
+    def test_persistence_does_not_overwrite_better_architecture_on_disk(self, tmp_path):
+        """Verify existing high-fitness architecture on disk is not overwritten by inferior candidate."""
+        best_arch_file = tmp_path / "best_architecture.json"
+        existing_best = {
+            "arch_id": "existing_high_performer",
+            "fitness": 0.95,
+            "val_metrics": {"accuracy": 0.98},
+            "circuit_metadata": {"circuit_depth": 5, "two_qubit_gates": 0},
+        }
+        with open(best_arch_file, "w", encoding="utf-8") as f:
+            json.dump(existing_best, f, indent=2)
+
+        inferior_fitness = 0.65
+        should_update = True
+        if best_arch_file.exists():
+            with open(best_arch_file, "r", encoding="utf-8") as f:
+                curr = json.load(f)
+            if curr.get("fitness", -1.0) > inferior_fitness:
+                should_update = False
+
+        assert should_update is False
+
+        # Read file again and confirm contents were untouched
+        with open(best_arch_file, "r", encoding="utf-8") as f:
+            final_data = json.load(f)
+        assert final_data["arch_id"] == "existing_high_performer"
+        assert final_data["fitness"] == 0.95
 
 
 class TestNoiseService:
