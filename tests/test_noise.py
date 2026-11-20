@@ -213,19 +213,30 @@ def test_noise_evaluator_trained_weight_preservation_and_noisy_probability_outpu
     np.testing.assert_allclose(report.noisy_probabilities.sum(axis=1), 1.0, atol=1e-5)
 
     # 3. Predicted classes strictly equal probability argmax
-    computed_preds = np.argmax(report.noisy_probabilities, axis=1)
-    # Check that computed predictions match confusion matrix sample classification
-    assert len(computed_preds) == len(X_test)
+    assert report.noisy_predictions is not None
+    assert report.ideal_predictions is not None
+    np.testing.assert_array_equal(report.noisy_predictions, np.argmax(report.noisy_probabilities, axis=1))
+    np.testing.assert_array_equal(report.ideal_predictions, np.argmax(report.ideal_probabilities, axis=1))
+    assert len(report.noisy_predictions) == len(X_test)
 
-    # 4. Ideal prediction invariance (calling predict_proba after noise eval returns unchanged ideal probs)
+    # 4. Verify configured noise model reaches the Aer simulator
+    assert evaluator.last_noise_model is not None
+    assert evaluator.last_sampler is not None
+    sampler_noise_model = getattr(evaluator.last_sampler.options, "noise_model", None)
+    assert sampler_noise_model is not None
+    assert len(sampler_noise_model.noise_instructions) > 0
+    assert "measure" in sampler_noise_model.noise_instructions
+
+    # 5. Ideal prediction invariance (calling predict_proba after noise eval returns unchanged ideal probs)
     post_ideal_probs = trained_dummy_vqc.predict_proba(X_test)
     np.testing.assert_array_almost_equal(ideal_probs, post_ideal_probs)
 
-    # 5. Reproducibility: repeated run with identical seed produces identical probabilities
+    # 6. Reproducibility: repeated run with identical seed produces identical probabilities
     evaluator_rep = NoiseEvaluator(seed=42)
     report_rep = evaluator_rep.evaluate(trained_dummy_vqc, X_test, y_test, noise_config)
     assert report_rep.noisy_probabilities is not None
     np.testing.assert_array_almost_equal(report.noisy_probabilities, report_rep.noisy_probabilities)
+    np.testing.assert_array_equal(report.noisy_predictions, report_rep.noisy_predictions)
 
     # 6. Noise model is actually applied: report contains configured noise parameters and valid metrics
     assert report.noise_config["single_qubit_error"] == 0.005

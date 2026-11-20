@@ -127,6 +127,41 @@ class SearchService:
             return json.load(f)
 
     @classmethod
+    def persist_search_artifacts(
+        cls,
+        search_result: EvolutionarySearchResult,
+        overall_best: CandidateEvaluationResult,
+        current_job: SearchJobState,
+        hist_path: Path | None = None,
+        best_arch_path: Path | None = None,
+    ) -> bool:
+        """Persist search history trajectory and conditionally update best architecture on disk."""
+        target_hist = hist_path or (get_project_root() / "experiments" / "results" / "search_history.json")
+        target_best = best_arch_path or (get_project_root() / "experiments" / "results" / "best_architecture.json")
+        target_hist.parent.mkdir(parents=True, exist_ok=True)
+        target_best.parent.mkdir(parents=True, exist_ok=True)
+
+        search_result.save(target_hist)
+
+        should_update = True
+        if target_best.exists():
+            try:
+                with open(target_best, "r", encoding="utf-8") as f:
+                    curr = json.load(f)
+                if curr.get("fitness", -1.0) > overall_best.fitness:
+                    should_update = False
+                    logger.info("Existing best architecture on disk has higher fitness (%.4f > %.4f); not overwriting.", curr.get("fitness", 0), overall_best.fitness)
+            except Exception:
+                pass
+        if should_update:
+            arch_dict = overall_best.to_dict()
+            arch_dict["experiment_run_id"] = current_job.experiment_run_id
+            with open(target_best, "w", encoding="utf-8") as f:
+                json.dump(arch_dict, f, indent=2)
+
+        return should_update
+
+    @classmethod
     def start_search(
         cls,
         pop_size: int = 4,
@@ -159,180 +194,195 @@ class SearchService:
             job.experiment_run_id = run_id
             cls._active_job = job
 
-        def _worker(current_job: SearchJobState) -> None:
-            t0 = time.perf_counter()
-            try:
-                # 1. Load data
-                data_path = get_project_root() / "data" / "processed" / "fashion_mnist_quantum_ready.npz"
-                data = np.load(data_path)
-                X_train, y_train = data["X_train"], data["y_train"]
-                X_val, y_val = data["X_val"], data["y_val"]
-
-                # 2. Setup Evaluator with active noise evaluation
-                fitness_calc = FitnessCalculator(
-                    w_performance=w_perf,
-                    w_complexity=w_comp,
-                    w_robustness=w_rob,
-                )
-                evaluator = ArchitectureEvaluator(
-                    X_train=X_train,
-                    y_train=y_train,
-                    X_val=X_val,
-                    y_val=y_val,
-                    fitness_calculator=fitness_calc,
-                    maxiter=maxiter,
-                    optimizer_name="cobyla",
-                    training_seed=random_seed,
-                    evaluate_noise=True,
-                    enable_cache=True,
-                )
-
-                # 3. Setup Engine
-                engine = EvolutionarySearchEngine(
-                    evaluator=evaluator,
-                    population_size=pop_size,
-                    max_generations=generations,
-                    elite_count=1,
-                    stagnation_limit=generations,
-                    crossover_rate=crossover_rate,
-                    mutation_rate=mutation_rate,
-                    tournament_size=tournament_size,
-                )
-
-                # 4. Execute search with cooperative monitoring
-                current_configs = engine.generator.sample_population(pop_size)
-                generation_history: list[GenerationRecord] = []
-                overall_best: CandidateEvaluationResult | None = None
-
-                for gen in range(generations):
-                    if current_job._cancel_requested:
-                        break
-
-                    gen_start = time.perf_counter()
-                    evaluated_pop = []
-                    for cfg in current_configs:
-                        if current_job._cancel_requested:
-                            break
-                        res = evaluator.evaluate(cfg)
-                        evaluated_pop.append(res)
-
-                    if current_job._cancel_requested:
-                        break
-
-                    # Exclude failed candidates from ranking and reproduction
-                    successful_pop = [c for c in evaluated_pop if c.success]
-                    if not successful_pop:
-                        err_msg = f"All candidate evaluations failed in generation {gen + 1}."
-                        logger.error(err_msg)
-                        with current_job.lock:
-                            current_job.status = "error"
-                            current_job.error_message = err_msg
-                        return
-
-                    successful_pop.sort(key=lambda c: c.fitness, reverse=True)
-                    gen_best = successful_pop[0]
-                    avg_fitness = float(np.mean([c.fitness for c in successful_pop]))
-                    gen_time = time.perf_counter() - gen_start
-
-                    rec = GenerationRecord(
-                        generation=gen + 1,
-                        best_candidate=gen_best,
-                        best_fitness=gen_best.fitness,
-                        avg_fitness=avg_fitness,
-                        candidates=evaluated_pop,
-                        elapsed_time_seconds=round(gen_time, 2),
-                    )
-                    generation_history.append(rec)
-                    current_job.update_generation(rec, generations)
-
-                    if overall_best is None or gen_best.fitness > overall_best.fitness:
-                        overall_best = gen_best
-
-                    if gen == generations - 1:
-                        break
-
-                    # Offspring generation from valid parents only
-                    next_configs = [successful_pop[0].config]  # Elitism = 1 from valid candidates
-                    while len(next_configs) < pop_size:
-                        p1 = engine.selector.select_parent(successful_pop, engine.rng)
-                        p2 = engine.selector.select_parent(successful_pop, engine.rng)
-                        c1, c2 = engine.crossover_op.crossover(p1.config, p2.config, engine.rng)
-                        next_configs.append(engine.mutation_op.mutate(c1, engine.rng))
-                        if len(next_configs) < pop_size:
-                            next_configs.append(engine.mutation_op.mutate(c2, engine.rng))
-                    current_configs = next_configs
-
-                total_time = time.perf_counter() - t0
-                with current_job.lock:
-                    if current_job._cancel_requested:
-                        current_job.status = "cancelled"
-                        current_job.persistence_status = "not_persisted"
-                        current_job.elapsed_time_seconds = total_time
-                        logger.info("Evolutionary search was cancelled gracefully.")
-                        return
-
-                    if overall_best is None or not overall_best.success:
-                        current_job.status = "error"
-                        current_job.persistence_status = "not_persisted"
-                        current_job.error_message = "No valid architecture candidate succeeded during search."
-                        logger.error(current_job.error_message)
-                        return
-
-                    current_job.status = "completed"
-                    current_job.elapsed_time_seconds = total_time
-                    current_job.final_result = overall_best.to_dict()
-
-                # Persist UI search results if successful and not cancelled
-                if overall_best is not None and overall_best.success and generation_history:
-                    with current_job.lock:
-                        current_job.persistence_status = "persisting"
-                    try:
-                        search_result = EvolutionarySearchResult(
-                            best_candidate=overall_best,
-                            generation_history=generation_history,
-                            total_evaluations=evaluator.total_evaluations,
-                            unique_architectures_evaluated=len(evaluator.cache),
-                            cache_hits=evaluator.cache_hits,
-                            total_runtime_seconds=round(total_time, 2),
-                            converged=False,
-                            stop_reason="max_generations_reached",
-                            experiment_run_id=current_job.experiment_run_id,
-                        )
-                        hist_path = get_project_root() / "experiments" / "results" / "search_history.json"
-                        search_result.save(hist_path)
-
-                        best_arch_path = get_project_root() / "experiments" / "results" / "best_architecture.json"
-                        should_update = True
-                        if best_arch_path.exists():
-                            try:
-                                with open(best_arch_path, "r", encoding="utf-8") as f:
-                                    curr = json.load(f)
-                                if curr.get("fitness", -1.0) > overall_best.fitness:
-                                    should_update = False
-                                    logger.info("Existing best architecture on disk has higher fitness (%.4f > %.4f); not overwriting.", curr.get("fitness", 0), overall_best.fitness)
-                            except Exception:
-                                pass
-                        if should_update:
-                            arch_dict = overall_best.to_dict()
-                            arch_dict["experiment_run_id"] = current_job.experiment_run_id
-                            with open(best_arch_path, "w", encoding="utf-8") as f:
-                                json.dump(arch_dict, f, indent=2)
-
-                        with current_job.lock:
-                            current_job.persistence_status = "persisted"
-                        logger.info("Persisted UI search trajectory and best architecture successfully.")
-                    except Exception as pe:
-                        with current_job.lock:
-                            current_job.persistence_status = "failed"
-                            current_job.persistence_error = str(pe)
-                        logger.error("Could not persist UI search results: %s", pe)
-
-            except Exception as e:
-                logger.error("Error in evolutionary search worker: %s", e)
-                with current_job.lock:
-                    current_job.status = "error"
-                    current_job.error_message = str(e)
-
-        cls._worker_thread = threading.Thread(target=_worker, args=(job,), daemon=True)
+        cls._worker_thread = threading.Thread(
+            target=cls._run_worker,
+            args=(
+                job,
+                pop_size,
+                generations,
+                maxiter,
+                w_perf,
+                w_comp,
+                w_rob,
+                crossover_rate,
+                mutation_rate,
+                tournament_size,
+                random_seed,
+            ),
+            daemon=True,
+        )
         cls._worker_thread.start()
         return True
+
+    @classmethod
+    def _run_worker(
+        cls,
+        current_job: SearchJobState,
+        pop_size: int = 4,
+        generations: int = 2,
+        maxiter: int = 25,
+        w_perf: float = 0.50,
+        w_comp: float = 0.30,
+        w_rob: float = 0.20,
+        crossover_rate: float = 0.70,
+        mutation_rate: float = 0.30,
+        tournament_size: int = 2,
+        random_seed: int = 42,
+    ) -> None:
+        t0 = time.perf_counter()
+        try:
+            # 1. Load data
+            data_path = get_project_root() / "data" / "processed" / "fashion_mnist_quantum_ready.npz"
+            data = np.load(data_path)
+            X_train, y_train = data["X_train"], data["y_train"]
+            X_val, y_val = data["X_val"], data["y_val"]
+
+            # 2. Setup Evaluator with active noise evaluation
+            fitness_calc = FitnessCalculator(
+                w_performance=w_perf,
+                w_complexity=w_comp,
+                w_robustness=w_rob,
+            )
+            evaluator = ArchitectureEvaluator(
+                X_train=X_train,
+                y_train=y_train,
+                X_val=X_val,
+                y_val=y_val,
+                fitness_calculator=fitness_calc,
+                maxiter=maxiter,
+                optimizer_name="cobyla",
+                training_seed=random_seed,
+                evaluate_noise=True,
+                enable_cache=True,
+            )
+
+            # 3. Setup Engine
+            engine = EvolutionarySearchEngine(
+                evaluator=evaluator,
+                population_size=pop_size,
+                max_generations=generations,
+                elite_count=1,
+                stagnation_limit=generations,
+                crossover_rate=crossover_rate,
+                mutation_rate=mutation_rate,
+                tournament_size=tournament_size,
+            )
+
+            # 4. Execute search with cooperative monitoring
+            current_configs = engine.generator.sample_population(pop_size)
+            generation_history: list[GenerationRecord] = []
+            overall_best: CandidateEvaluationResult | None = None
+
+            for gen in range(generations):
+                if current_job._cancel_requested:
+                    break
+
+                gen_start = time.perf_counter()
+                evaluated_pop = []
+                for cfg in current_configs:
+                    if current_job._cancel_requested:
+                        break
+                    res = evaluator.evaluate(cfg)
+                    evaluated_pop.append(res)
+
+                if current_job._cancel_requested:
+                    break
+
+                # Exclude failed candidates from ranking and reproduction
+                successful_pop = [c for c in evaluated_pop if c.success]
+                if not successful_pop:
+                    err_msg = f"All candidate evaluations failed in generation {gen + 1}."
+                    logger.error(err_msg)
+                    with current_job.lock:
+                        current_job.status = "error"
+                        current_job.persistence_status = "not_persisted"
+                        current_job.error_message = err_msg
+                    return
+
+                successful_pop.sort(key=lambda c: c.fitness, reverse=True)
+                gen_best = successful_pop[0]
+                avg_fitness = float(np.mean([c.fitness for c in successful_pop]))
+                gen_time = time.perf_counter() - gen_start
+
+                rec = GenerationRecord(
+                    generation=gen + 1,
+                    best_candidate=gen_best,
+                    best_fitness=gen_best.fitness,
+                    avg_fitness=avg_fitness,
+                    candidates=evaluated_pop,
+                    elapsed_time_seconds=round(gen_time, 2),
+                )
+                generation_history.append(rec)
+                current_job.update_generation(rec, generations)
+
+                if overall_best is None or gen_best.fitness > overall_best.fitness:
+                    overall_best = gen_best
+
+                if gen == generations - 1:
+                    break
+
+                # Offspring generation from valid parents only
+                next_configs = [successful_pop[0].config]  # Elitism = 1 from valid candidates
+                while len(next_configs) < pop_size:
+                    p1 = engine.selector.select_parent(successful_pop, engine.rng)
+                    p2 = engine.selector.select_parent(successful_pop, engine.rng)
+                    c1, c2 = engine.crossover_op.crossover(p1.config, p2.config, engine.rng)
+                    next_configs.append(engine.mutation_op.mutate(c1, engine.rng))
+                    if len(next_configs) < pop_size:
+                        next_configs.append(engine.mutation_op.mutate(c2, engine.rng))
+                current_configs = next_configs
+
+            total_time = time.perf_counter() - t0
+            with current_job.lock:
+                if current_job._cancel_requested:
+                    current_job.status = "cancelled"
+                    current_job.persistence_status = "not_persisted"
+                    current_job.elapsed_time_seconds = total_time
+                    logger.info("Evolutionary search was cancelled gracefully.")
+                    return
+
+                if overall_best is None or not overall_best.success:
+                    current_job.status = "error"
+                    current_job.persistence_status = "not_persisted"
+                    current_job.error_message = "No valid architecture candidate succeeded during search."
+                    logger.error(current_job.error_message)
+                    return
+
+                current_job.status = "completed"
+                current_job.elapsed_time_seconds = total_time
+                current_job.final_result = overall_best.to_dict()
+
+            # Persist UI search results if successful and not cancelled
+            if overall_best is not None and overall_best.success and generation_history:
+                with current_job.lock:
+                    current_job.persistence_status = "persisting"
+                try:
+                    search_result = EvolutionarySearchResult(
+                        best_candidate=overall_best,
+                        generation_history=generation_history,
+                        total_evaluations=evaluator.total_evaluations,
+                        unique_architectures_evaluated=len(evaluator.cache),
+                        cache_hits=evaluator.cache_hits,
+                        total_runtime_seconds=round(total_time, 2),
+                        converged=False,
+                        stop_reason="max_generations_reached",
+                        experiment_run_id=current_job.experiment_run_id,
+                    )
+                    cls.persist_search_artifacts(search_result, overall_best, current_job)
+                    with current_job.lock:
+                        current_job.persistence_status = "persisted"
+                    logger.info("Persisted UI search trajectory and best architecture successfully.")
+                except Exception as pe:
+                    with current_job.lock:
+                        current_job.persistence_status = "failed"
+                        current_job.persistence_error = str(pe)
+                    logger.error("Could not persist UI search results: %s", pe)
+
+        except Exception as e:
+            logger.error("Error in evolutionary search worker: %s", e)
+            with current_job.lock:
+                current_job.status = "error"
+                current_job.persistence_status = "not_persisted"
+                current_job.error_message = str(e)
+
+

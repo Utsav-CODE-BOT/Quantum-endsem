@@ -1,6 +1,8 @@
 {
   "experiment_run_id": "EXP-20261120-QNN-01",
   "arch_id": "arch_4169ee9360",
+  "checkpoint_hash": "151e19ca76722842",
+  "checkpoint_path": "experiments/checkpoints/optimized_vqc.pkl",
   "config": {
     "num_qubits": 4,
     "num_layers": 3,
@@ -28,21 +30,21 @@
     "num_trainable_parameters": 32
   },
   "val_metrics": {
-    "accuracy": 0.9,
-    "precision_macro": 0.9017857142857143,
-    "recall_macro": 0.9,
-    "f1_macro": 0.899888765294772,
+    "accuracy": 0.8833,
+    "precision_macro": 0.9054,
+    "recall_macro": 0.8833,
+    "f1_macro": 0.8817,
     "confusion_matrix": [
       [
-        28,
-        2
+        23,
+        7
       ],
       [
-        4,
-        26
+        0,
+        30
       ]
     ],
-    "roc_auc": 0.9888888888888889,
+    "roc_auc": 0.9567,
     "num_samples": 60
   },
   "train_metrics": null,
@@ -65,36 +67,57 @@
     "num_samples": 100
   },
   "noisy_val_metrics": {
-    "accuracy": 0.9,
-    "precision_macro": 0.9017857142857143,
-    "recall_macro": 0.9,
-    "f1_macro": 0.899888765294772,
+    "accuracy": 0.8833,
+    "precision_macro": 0.9054,
+    "recall_macro": 0.8833,
+    "f1_macro": 0.8817,
     "confusion_matrix": [
       [
-        28,
-        2
+        23,
+        7
       ],
       [
-        4,
-        26
+        0,
+        30
       ]
     ],
-    "roc_auc": 0.961111111111111,
+    "roc_auc": 0.9567,
     "num_samples": 60
   },
-  "fitness": 0.615,
+  "fitness": 0.6067,
   "fitness_breakdown": {
-    "scalar_fitness": 0.615,
-    "performance_score": 0.9,
-    "complexity_score": 0.11666666666666667,
+    "scalar_fitness": 0.6067,
+    "performance_score": 0.8833,
+    "complexity_score": 0.1167,
     "robustness_score": 1.0,
     "w_performance": 0.5,
     "w_complexity": 0.3,
     "w_robustness": 0.2
   },
-  "training_time_seconds": 16.95,
+  "training_time_seconds": 23.17,
   "evaluation_time_seconds": 0.4297,
   "is_cached": false,
   "success": true,
-  "error_message": ""
+  "error_message": "",
+  "evaluation_lineage": {
+    "search_discovery": {
+      "experiment_run_id": "EXP-SEARCH-4169EE9360",
+      "optimizer_maxiter": 25,
+      "val_accuracy": 0.9,
+      "test_accuracy": 0.88,
+      "training_time_seconds": 16.95,
+      "selection_fitness": 0.615,
+      "description": "Multi-objective evolutionary search discovery evaluation"
+    },
+    "standardized_benchmark": {
+      "experiment_run_id": "EXP-BENCH-20261120",
+      "optimizer_maxiter": 35,
+      "val_accuracy": 0.8833,
+      "test_accuracy": 0.9,
+      "training_time_seconds": 23.17,
+      "checkpoint_hash": "151e19ca76722842",
+      "checkpoint_path": "experiments/checkpoints/optimized_vqc.pkl",
+      "description": "Standardized benchmark evaluation against classical and fixed quantum baselines"
+    }
+  }
 }

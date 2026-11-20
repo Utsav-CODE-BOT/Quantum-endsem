@@ -1,5 +1,7 @@
 {
   "experiment_run_id": "EXP-20261120-QNN-01",
+  "checkpoint_hash": "21bf8f99f15b3672",
+  "checkpoint_path": "experiments/checkpoints/baseline_vqc.pkl",
   "training_time_seconds": 60.86,
   "total_evaluations": 100,
   "seconds_per_evaluation": 0.6086,

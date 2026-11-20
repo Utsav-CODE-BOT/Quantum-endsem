@@ -135,8 +135,8 @@ class TestSearchService:
         assert started is False
         SearchService._active_job.status = "idle"
 
-    def test_persistence_success_and_file_creation(self, tmp_path):
-        """Verify successful search persistence creates valid JSON file on disk."""
+    def test_actual_persistence_behavior(self, tmp_path):
+        """Verify production SearchService.persist_search_artifacts writes valid files to disk."""
         cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
         meta = CircuitMetadata(
             num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10,
@@ -151,7 +151,7 @@ class TestSearchService:
             robustness_score=1.0, w_performance=0.5, w_complexity=0.3, w_robustness=0.2,
         )
         cand = CandidateEvaluationResult(
-            arch_id="test_cand_1", config=cfg, circuit_metadata=meta,
+            arch_id="test_cand_prod", config=cfg, circuit_metadata=meta,
             val_metrics=report, fitness=0.65, fitness_breakdown=fitness_bd,
             training_time_seconds=1.2, evaluation_time_seconds=0.1, is_cached=False,
             success=True,
@@ -169,15 +169,32 @@ class TestSearchService:
             total_runtime_seconds=1.5,
             converged=False,
             stop_reason="max_generations_reached",
-            experiment_run_id="EXP-20261120-QNN-01",
+            experiment_run_id="EXP-PROD-TEST",
         )
-        save_path = tmp_path / "search_history.json"
-        search_result.save(save_path)
-        assert save_path.exists()
-        assert save_path.stat().st_size > 0
+        job = SearchJobState()
+        job.experiment_run_id = "EXP-PROD-TEST"
 
-    def test_persistence_json_reload_and_schema_validation(self, tmp_path):
-        """Verify saved search JSON can be reloaded and conforms to schema."""
+        hist_file = tmp_path / "search_history.json"
+        best_file = tmp_path / "best_architecture.json"
+
+        updated = SearchService.persist_search_artifacts(
+            search_result=search_result,
+            overall_best=cand,
+            current_job=job,
+            hist_path=hist_file,
+            best_arch_path=best_file,
+        )
+        assert updated is True
+        assert hist_file.exists()
+        assert best_file.exists()
+
+        with open(best_file, "r", encoding="utf-8") as f:
+            best_data = json.load(f)
+        assert best_data["arch_id"] == "test_cand_prod"
+        assert best_data["experiment_run_id"] == "EXP-PROD-TEST"
+
+    def test_filesystem_write_failure_handling(self, tmp_path, monkeypatch):
+        """Verify production worker catches write failure and records persistence_status='failed'."""
         cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
         meta = CircuitMetadata(
             num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10,
@@ -192,79 +209,75 @@ class TestSearchService:
             robustness_score=1.0, w_performance=0.5, w_complexity=0.3, w_robustness=0.2,
         )
         cand = CandidateEvaluationResult(
-            arch_id="test_cand_schema", config=cfg, circuit_metadata=meta,
+            arch_id="test_cand_fail", config=cfg, circuit_metadata=meta,
             val_metrics=report, fitness=0.65, fitness_breakdown=fitness_bd,
-            training_time_seconds=1.2, evaluation_time_seconds=0.1, is_cached=False,
+            training_time_seconds=0.1, evaluation_time_seconds=0.1, is_cached=False,
             success=True,
         )
-        gen_rec = GenerationRecord(
-            generation=1, best_candidate=cand, best_fitness=0.65, avg_fitness=0.65,
-            candidates=[cand], elapsed_time_seconds=1.3,
-        )
-        search_result = EvolutionarySearchResult(
-            best_candidate=cand,
-            generation_history=[gen_rec],
-            total_evaluations=5,
-            unique_architectures_evaluated=3,
-            cache_hits=2,
-            total_runtime_seconds=2.5,
-            converged=True,
-            stop_reason="stagnation_limit_reached",
-            experiment_run_id="EXP-SCHEMA-TEST",
-        )
-        save_path = tmp_path / "reloaded_history.json"
-        search_result.save(save_path)
-
-        with open(save_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        assert data["experiment_run_id"] == "EXP-SCHEMA-TEST"
-        assert data["total_evaluations"] == 5
-        assert data["unique_architectures_evaluated"] == 3
-        assert data["cache_hits"] == 2
-        assert data["converged"] is True
-        assert data["stop_reason"] == "stagnation_limit_reached"
-        assert data["best_candidate"]["arch_id"] == "test_cand_schema"
-        assert data["best_candidate"]["circuit_metadata"]["circuit_depth"] == 5
-        assert data["best_candidate"]["fitness_breakdown"]["robustness_score"] == 1.0
-        assert len(data["generation_history"]) == 1
-
-    def test_persistence_failure_handling(self):
-        """Verify persistence error sets persistence_status='failed' and records error message."""
         job = SearchJobState()
-        job.status = "completed"
-        job.persistence_status = "persisting"
+        job.experiment_run_id = "EXP-FAIL-TEST"
 
-        # Simulate exception during disk persistence
-        try:
-            raise OSError("Permission denied: cannot write search_history.json")
-        except Exception as pe:
-            with job.lock:
-                job.persistence_status = "failed"
-                job.persistence_error = str(pe)
+        def mock_failing_persist(*args, **kwargs):
+            raise OSError("Simulated I/O permission denied writing artifacts")
 
-        status_dict = job.to_dict()
-        assert status_dict["status"] == "completed"
-        assert status_dict["persistence_status"] == "failed"
-        assert "Permission denied" in status_dict["persistence_error"]
+        monkeypatch.setattr(SearchService, "persist_search_artifacts", mock_failing_persist)
+        monkeypatch.setattr("src.evaluation.evaluator.ArchitectureEvaluator.evaluate", lambda *a, **k: cand)
 
-    def test_persistence_cancellation_marks_not_persisted(self):
-        """Verify cancelled search transitions to cancelled with persistence_status='not_persisted'."""
-        job = SearchJobState()
-        job.status = "running"
-        job._cancel_requested = True
+        SearchService._run_worker(
+            current_job=job,
+            pop_size=2,
+            generations=1,
+            maxiter=1,
+            w_perf=0.5,
+            w_comp=0.3,
+            w_rob=0.2,
+            crossover_rate=0.7,
+            mutation_rate=0.3,
+            tournament_size=2,
+            random_seed=42,
+        )
 
-        with job.lock:
-            if job._cancel_requested:
-                job.status = "cancelled"
-                job.persistence_status = "not_persisted"
+        status = job.to_dict()
+        assert status["status"] == "completed"
+        assert status["persistence_status"] == "failed"
+        assert "Simulated I/O permission denied" in status["persistence_error"]
 
-        status_dict = job.to_dict()
-        assert status_dict["status"] == "cancelled"
-        assert status_dict["persistence_status"] == "not_persisted"
+    def test_search_cancellation_production(self, monkeypatch):
+        """Verify production SearchService.cancel_search transitions job to cancelled and not_persisted."""
+        import time
+        SearchService._active_job = SearchJobState()
 
-    def test_persistence_no_failed_candidate_saved_as_best(self):
-        """Verify failed candidates are never marked as completed or persisted."""
+        # Mock evaluate to simulate brief evaluation work
+        cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
+        meta = CircuitMetadata(num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10, two_qubit_gates=0, gate_distribution={}, num_input_features=4, num_trainable_parameters=8)
+        rep = ClassificationReport(accuracy=0.9, precision_macro=0.9, recall_macro=0.9, f1_macro=0.9, confusion_matrix=[[27, 3], [3, 27]], roc_auc=0.95, num_samples=60)
+        fbd = FitnessBreakdown(scalar_fitness=0.6, performance_score=0.9, complexity_score=0.1, robustness_score=1.0, w_performance=0.5, w_complexity=0.3, w_robustness=0.2)
+        mock_cand = CandidateEvaluationResult(arch_id="cand_slow", config=cfg, circuit_metadata=meta, val_metrics=rep, fitness=0.6, fitness_breakdown=fbd, training_time_seconds=0.01, evaluation_time_seconds=0.01, is_cached=False, success=True)
+
+        def slow_eval(*args, **kwargs):
+            time.sleep(0.05)
+            return mock_cand
+
+        monkeypatch.setattr("src.evaluation.evaluator.ArchitectureEvaluator.evaluate", slow_eval)
+
+        SearchService.start_search(pop_size=4, generations=5, maxiter=1)
+        time.sleep(0.02)
+
+        # Production cancellation call
+        SearchService.cancel_search()
+
+        # Wait for worker thread to exit cooperatively
+        for _ in range(50):
+            if not SearchService.is_running():
+                break
+            time.sleep(0.05)
+
+        status = SearchService.get_status()
+        assert status["status"] == "cancelled"
+        assert status["persistence_status"] == "not_persisted"
+
+    def test_failed_candidate_exclusion_in_worker(self, monkeypatch):
+        """Verify production worker excludes failed candidates and transitions to error if none succeed."""
         cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
         meta = CircuitMetadata(
             num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10,
@@ -282,26 +295,36 @@ class TestSearchService:
             arch_id="failed_cand", config=cfg, circuit_metadata=meta,
             val_metrics=report, fitness=-1.0, fitness_breakdown=fitness_bd,
             training_time_seconds=0.1, evaluation_time_seconds=0.1, is_cached=False,
-            success=False, error_message="Simulated quantum error",
+            success=False, error_message="Simulated quantum execution failure",
         )
 
         job = SearchJobState()
-        job.status = "running"
-        overall_best = failed_cand
+        job.experiment_run_id = "EXP-FAIL-POP"
 
-        with job.lock:
-            if overall_best is None or not overall_best.success:
-                job.status = "error"
-                job.persistence_status = "not_persisted"
-                job.error_message = "No valid architecture candidate succeeded during search."
+        # Mock evaluate to return only failed candidate
+        monkeypatch.setattr("src.evaluation.evaluator.ArchitectureEvaluator.evaluate", lambda *a, **k: failed_cand)
 
-        status_dict = job.to_dict()
-        assert status_dict["status"] == "error"
-        assert status_dict["persistence_status"] == "not_persisted"
-        assert "No valid architecture candidate succeeded" in status_dict["error_message"]
+        SearchService._run_worker(
+            current_job=job,
+            pop_size=2,
+            generations=1,
+            maxiter=1,
+            w_perf=0.5,
+            w_comp=0.3,
+            w_rob=0.2,
+            crossover_rate=0.7,
+            mutation_rate=0.3,
+            tournament_size=2,
+            random_seed=42,
+        )
 
-    def test_persistence_does_not_overwrite_better_architecture_on_disk(self, tmp_path):
-        """Verify existing high-fitness architecture on disk is not overwritten by inferior candidate."""
+        status = job.to_dict()
+        assert status["status"] == "error"
+        assert status["persistence_status"] == "not_persisted"
+        assert "All candidate evaluations failed in generation 1" in status["error_message"]
+
+    def test_inferior_candidate_cannot_overwrite_existing_best(self, tmp_path):
+        """Verify production SearchService.persist_search_artifacts guards higher-fitness best architecture."""
         best_arch_file = tmp_path / "best_architecture.json"
         existing_best = {
             "arch_id": "existing_high_performer",
@@ -312,21 +335,59 @@ class TestSearchService:
         with open(best_arch_file, "w", encoding="utf-8") as f:
             json.dump(existing_best, f, indent=2)
 
-        inferior_fitness = 0.65
-        should_update = True
-        if best_arch_file.exists():
-            with open(best_arch_file, "r", encoding="utf-8") as f:
-                curr = json.load(f)
-            if curr.get("fitness", -1.0) > inferior_fitness:
-                should_update = False
+        cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
+        meta = CircuitMetadata(
+            num_qubits=4, circuit_depth=5, total_gates=10, single_qubit_gates=10,
+            two_qubit_gates=0, gate_distribution={"ry": 10}, num_input_features=4, num_trainable_parameters=8,
+        )
+        report = ClassificationReport(
+            accuracy=0.60, precision_macro=0.60, recall_macro=0.60, f1_macro=0.60,
+            confusion_matrix=[[18, 12], [12, 18]], roc_auc=0.60, num_samples=60,
+        )
+        fitness_bd = FitnessBreakdown(
+            scalar_fitness=0.45, performance_score=0.60, complexity_score=0.15,
+            robustness_score=1.0, w_performance=0.5, w_complexity=0.3, w_robustness=0.2,
+        )
+        inferior_cand = CandidateEvaluationResult(
+            arch_id="inferior_cand", config=cfg, circuit_metadata=meta,
+            val_metrics=report, fitness=0.45, fitness_breakdown=fitness_bd,
+            training_time_seconds=1.0, evaluation_time_seconds=0.1, is_cached=False,
+            success=True,
+        )
+        gen_rec = GenerationRecord(
+            generation=1, best_candidate=inferior_cand, best_fitness=0.45, avg_fitness=0.45,
+            candidates=[inferior_cand], elapsed_time_seconds=1.1,
+        )
+        search_result = EvolutionarySearchResult(
+            best_candidate=inferior_cand,
+            generation_history=[gen_rec],
+            total_evaluations=1,
+            unique_architectures_evaluated=1,
+            cache_hits=0,
+            total_runtime_seconds=1.2,
+            converged=False,
+            stop_reason="max_generations_reached",
+            experiment_run_id="EXP-INFERIOR",
+        )
+        job = SearchJobState()
+        job.experiment_run_id = "EXP-INFERIOR"
 
-        assert should_update is False
+        hist_file = tmp_path / "search_history.json"
+        updated = SearchService.persist_search_artifacts(
+            search_result=search_result,
+            overall_best=inferior_cand,
+            current_job=job,
+            hist_path=hist_file,
+            best_arch_path=best_arch_file,
+        )
 
-        # Read file again and confirm contents were untouched
+        assert updated is False
+
+        # Read back and confirm higher fitness candidate was preserved
         with open(best_arch_file, "r", encoding="utf-8") as f:
-            final_data = json.load(f)
-        assert final_data["arch_id"] == "existing_high_performer"
-        assert final_data["fitness"] == 0.95
+            reloaded = json.load(f)
+        assert reloaded["arch_id"] == "existing_high_performer"
+        assert reloaded["fitness"] == 0.95
 
 
 class TestNoiseService:

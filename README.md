@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![Qiskit](https://img.shields.io/badge/Qiskit-1.4.2-613394.svg)](https://qiskit.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing%20(143%2F143)-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing%20(142%2F142)-brightgreen.svg)](tests/)
 
 An end-to-end, research-grade quantum machine learning framework developed in Python and Qiskit that automates the discovery, optimization, and evaluation of **Variational Quantum Classifiers (VQCs)**.
 
@@ -20,7 +20,7 @@ The framework resolves the multi-objective trade-off between **predictive accura
    $$f_{\text{comp}}(A) = \frac{1}{2}\left(\frac{\text{depth}(A)}{50} + \frac{N_{2Q}(A)}{30}\right)$$
    $$f_{\text{rob}}(A) = \min\left(1, \max\left(0, \frac{\text{Acc}_{\text{noisy}}(A)}{\text{Acc}_{\text{val}}(A)}\right)\right)$$
    assuming $\text{Acc}_{\text{val}}(A) > 0$ (guarded against division by zero). Here $f_{\text{rob}}(A)$ represents the exact fraction of ideal validation accuracy retained under simulated NISQ noise, mathematically clamped to $[0, 1]$ to prevent scores exceeding $1.0$. If noise evaluation fails, the candidate is disqualified ($F(A) = -1.0$). Default weights are $w_{\text{perf}} = 0.50$, $w_{\text{comp}} = 0.30$, and $w_{\text{rob}} = 0.20$.
-2. **Empirical Resource Reduction with High Noise Retention:** The search discovered compact Pareto-efficient architectures (e.g., `arch_4169ee9360` with depth 10, 1 CX gate, 32 parameters, and `arch_b137878901` with depth 5, 0 CX gates, 16 parameters) that cut two-qubit entangling gates by **83.3% to 100%** while achieving **90.00% to 96.00% test accuracy** and up to **100.00% accuracy retention** under simulated NISQ noise tiers.
+2. **Empirical Resource Reduction with High Noise Retention:** The search discovered a compact Pareto-efficient architecture (`arch_4169ee9360` with depth 10, 1 CX gate, 32 parameters) that cut two-qubit entangling gates by **83.3%** (from 6 down to 1 CX gate) while achieving **90.00% test accuracy** and **98.89% accuracy retention** under simulated High Noise NISQ conditions ($p_{1q}=0.5\%, p_{2q}=3\%, p_{\text{meas}}=3\%$).
 3. **Rigorous Simulated NISQ Noise Benchmarking:** Paired evaluation across ideal statevector simulation and hardware-inspired NISQ noise tiers (low, medium, and high depolarizing + readout error, 1,024 shots) using Qiskit Aer's density matrix backend. *(Note: All experiments represent classical simulations of hardware-inspired noise models, not physical quantum device executions.)*
 4. **Strict Methodological Discipline:** Zero data leakage (PCA and scaling fitted strictly on training data), standard scikit-learn compatible interfaces, and honest scientific reporting without unsubstantiated "quantum advantage" claims.
 
@@ -99,9 +99,12 @@ Evaluated on Fashion-MNIST binary classification (Class 0: T-shirt vs Class 9: A
 | **Fixed Deep VQC** | Quantum Baseline | 40 | 27 | 16 | 93.33% | 92.00% | 0.9195 | 0.9956 | 34.95s | 5.09ms |
 | **Search-Optimized VQC (`arch_4169ee9360`)** | **Quantum Search** | **32** | **10** | **1** | **88.33%** | **90.00%** | **0.8994** | **0.9688** | **23.17s** | **3.40ms** |
 
+> [!NOTE]
+> **Experiment Lineage & Evaluation Budget:** The search-optimized candidate (`arch_4169ee9360`) was discovered during evolutionary search (`EXP-SEARCH-4169EE9360`, budget `maxiter=25`, 16.95s training), achieving 90.00% validation accuracy and 88.00% test accuracy. In the standardized head-to-head benchmark above (`EXP-BENCH-20261120`), all models were trained under the uniform protocol (`maxiter=35`, 23.17s training, checkpoint weights hash: `151e19ca76722842`), achieving 88.33% validation accuracy and 90.00% test accuracy. Checkpoint weights for both Baseline VQC (`21bf8f99f15b3672`) and Search-Optimized VQC (`151e19ca76722842`) are preserved in `experiments/checkpoints/`.
+
 ### Key Benchmark Insights:
 - **Optimization Degradation in Deeper Ansätze:** The deeper VQC exhibited lower classification accuracy (92.00%) and required longer training time (34.95s) than the shallow (99.00%) and search-optimized (90.00%) architectures. This may reflect optimization difficulties or overparameterization. However, gradient variance was not measured, so the presence of barren plateaus cannot be established from these results.
-- **Resource Optimization & Expressive Sufficiency:** While PCA produces orthogonal component directions, this mathematical property does not, by itself, theoretically prove that a low-entangling quantum circuit has sufficient expressive capacity for classification. Rather, our justification is empirical: on this 360-sample partition, the search autonomously converged on compact models with minimal entangling gates ($CX = 1$ in `arch_4169ee9360` and $CX = 0$ in `arch_b137878901`) that achieved 90.00% to 96.00% test accuracy while avoiding the heavy noise penalty associated with two-qubit gates on NISQ devices. Note that this task-specific result does not establish that entanglement is generally unnecessary in QML or on more complex datasets.
+- **Resource Optimization & Expressive Sufficiency:** While PCA produces orthogonal component directions, this mathematical property does not, by itself, theoretically prove that a low-entangling quantum circuit has sufficient expressive capacity for classification. Rather, our justification is empirical: on this 360-sample partition, the search autonomously converged on a compact model with minimal entangling gates ($CX = 1$ in `arch_4169ee9360`) that achieved 90.00% test accuracy while avoiding the heavy noise penalty associated with two-qubit gates on NISQ devices. Note that this task-specific result does not establish that entanglement is generally unnecessary in QML or on more complex datasets.
 - **Dataset Scale Scope & Pilot Study Nature (360 Samples):** Experiments evaluate a controlled 360-sample partition (200 train, 60 validation, 100 test). With only 100 test samples, each correct or incorrect prediction changes test accuracy by exactly 1.0 percentage point. The 100% test accuracy achieved by classical Linear and RBF SVMs demonstrates that this 4D binary projection is linearly separable on this sample size, and should not be misinterpreted as 100% accuracy on full 10-class, 784-dimensional Fashion-MNIST or as quantum supremacy. Results are presented as a controlled pilot experiment.
 
 ---
@@ -170,7 +173,7 @@ quantum-architecture-optimizer/
 │   ├── training/                   # Training history and callbacks
 │   ├── utils/                      # Config, logging, seed, system monitor
 │   └── visualization/              # Publication plotting routines
-├── tests/                          # 139 unit and integration tests (pytest)
+├── tests/                          # 142 comprehensive unit, integration, and UI service tests (pytest)
 ├── pyproject.toml                  # Package configuration & test flags
 ├── requirements.txt                # Pinned dependency manifest
 └── README.md                       # Project master documentation

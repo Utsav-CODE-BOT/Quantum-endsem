@@ -1,5 +1,5 @@
 {
-  "experiment_run_id": "EXP-20261120-QNN-01",
+  "experiment_run_id": "EXP-BENCH-20261120",
   "task": "Fashion-MNIST Binary Classification (0: T-shirt vs 9: Ankle Boot)",
   "num_features": 4,
   "split_sizes": {
@@ -79,6 +79,7 @@
     {
       "model_name": "Fixed Standard VQC",
       "category": "Quantum Baseline",
+      "checkpoint_hash": "21bf8f99f15b3672",
       "num_parameters": 24,
       "circuit_depth": 12,
       "total_gates": 34,
@@ -113,6 +114,7 @@
     {
       "model_name": "Optimized VQC (arch_4169ee9360)",
       "category": "Quantum Search",
+      "checkpoint_hash": "151e19ca76722842",
       "num_parameters": 32,
       "circuit_depth": 10,
       "total_gates": 37,

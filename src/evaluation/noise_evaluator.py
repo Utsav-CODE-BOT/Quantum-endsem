@@ -52,6 +52,8 @@ class NoiseEvaluationReport:
     noise_sensitivity_index: float  # relative drop
     noisy_probabilities: np.ndarray | None = None
     ideal_probabilities: np.ndarray | None = None
+    noisy_predictions: np.ndarray | None = None
+    ideal_predictions: np.ndarray | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -194,6 +196,9 @@ class NoiseEvaluator:
         retention = noisy_metrics.accuracy / max(ideal_metrics.accuracy, 1e-4)
         sensitivity = max(0.0, acc_drop) / max(ideal_metrics.accuracy, 1e-4)
 
+        self.last_sampler = noisy_sampler
+        self.last_noise_model = noise_model
+
         report = NoiseEvaluationReport(
             arch_id=getattr(vqc, "arch_id", "vqc_model"),
             noise_config=noise_config.to_dict(),
@@ -205,6 +210,8 @@ class NoiseEvaluator:
             noise_sensitivity_index=sensitivity,
             noisy_probabilities=noisy_probs,
             ideal_probabilities=ideal_probs,
+            noisy_predictions=noisy_preds,
+            ideal_predictions=ideal_preds,
         )
 
         logger.info(

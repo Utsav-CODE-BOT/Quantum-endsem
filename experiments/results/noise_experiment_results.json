@@ -1,5 +1,5 @@
 {
-  "experiment_run_id": "EXP-20261120-QNN-01",
+  "experiment_run_id": "EXP-NOISE-20261120",
   "dataset": "Fashion-MNIST (0: T-shirt vs 9: Ankle Boot)",
   "features": 4,
   "test_samples": 100,
@@ -7,13 +7,15 @@
     "num_layers": 2,
     "depth": 12,
     "total_gates": 34,
-    "num_parameters": 24
+    "num_parameters": 24,
+    "checkpoint_hash": "21bf8f99f15b3672"
   },
   "optimized_architecture": {
     "num_layers": 3,
     "depth": 10,
     "total_gates": 37,
-    "num_parameters": 32
+    "num_parameters": 32,
+    "checkpoint_hash": "151e19ca76722842"
   },
   "benchmarks": {
     "baseline": [
