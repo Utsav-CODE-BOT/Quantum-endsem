@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![Qiskit](https://img.shields.io/badge/Qiskit-1.4.2-613394.svg)](https://qiskit.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing%20(132%2F132)-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing%20(135%2F135)-brightgreen.svg)](tests/)
 
 An end-to-end, research-grade quantum machine learning framework developed in Python and Qiskit that automates the discovery, optimization, and evaluation of **Variational Quantum Classifiers (VQCs)**.
 
@@ -88,8 +88,8 @@ Evaluated on Fashion-MNIST binary classification (Class 0: T-shirt vs Class 9: A
 | **Search-Optimized VQC** | **Quantum Search** | **16** | **5** | **0** | **93.33%** | **96.00%** | **0.9600** | **0.9872** | **21.24s** | **3.13ms** |
 
 ### Key Benchmark Insights:
-- **Optimization Degradation in Deeper Ansätze:** The Fixed Deep VQC (depth 27, 40 parameters) dropped to 92.00% accuracy and required 51.74s to train. This empirical degradation with circuit depth is consistent with trainability bottlenecks and overparameterization in variational quantum circuits; formal verification of barren plateaus requires explicit gradient variance scaling measurements across system sizes $\text{Var}_{\boldsymbol{\theta}}[\partial \mathcal{L}/\partial \theta_k] \in \mathcal{O}(2^{-n})$.
-- **Resource Optimization & Expressive Sufficiency (0 CX Gates):** The search-optimized model reached 96.00% test accuracy with only 16 parameters, depth 5, and 0 CX gates. Because the 4 input features are orthogonal PCA components, single-qubit rotations provide sufficient expressive capacity to separate classes 0 and 9 without incurring the 2-qubit gate noise penalty and depth overhead associated with entangling gates on NISQ hardware.
+- **Optimization Degradation in Deeper Ansätze:** The deeper VQC exhibited lower classification accuracy (92.00%) and required longer training time (51.74s) than the shallow (99.00%) and search-optimized (96.00%) architectures. This may reflect optimization difficulties or overparameterization. However, gradient variance was not measured, so the presence of barren plateaus cannot be established from these results.
+- **Resource Optimization & Expressive Sufficiency (0 CX Gates):** The search-optimized model reached 96.00% test accuracy with only 16 parameters, depth 5, and 0 CX gates. The search found a compact architecture that outperformed the standard and deep fixed VQC baselines on this task. Single-qubit rotations proved expressive enough to separate the 4 orthogonal PCA features without incurring the 2-qubit gate noise penalty and depth overhead associated with entangling gates on NISQ hardware. Note that this task-specific result does not establish that entanglement is generally unnecessary in QML.
 - **Dataset Scale Scope (360 Samples):** Experiments evaluate a controlled 360-sample partition (200 train, 60 validation, 100 test). The 100% test accuracy achieved by classical Linear and RBF SVMs demonstrates that this 4D binary projection is linearly separable on this sample size, and should not be misinterpreted as 100% accuracy on full 10-class, 784-dimensional Fashion-MNIST or as quantum supremacy.
 
 ---
@@ -158,7 +158,7 @@ quantum-architecture-optimizer/
 │   ├── training/                   # Training history and callbacks
 │   ├── utils/                      # Config, logging, seed, system monitor
 │   └── visualization/              # Publication plotting routines
-├── tests/                          # 89 unit and integration tests (pytest)
+├── tests/                          # 135 unit and integration tests (pytest)
 ├── pyproject.toml                  # Package configuration & test flags
 ├── requirements.txt                # Pinned dependency manifest
 └── README.md                       # Project master documentation

@@ -9,7 +9,7 @@ This document provides setup instructions and launch commands for the **Quantum 
 - **Operating System:** Windows, macOS, or Linux
 - **Python:** Python 3.11.x (installed in project `.venv`)
 - **Quantum Stack:** Qiskit 1.4.2, Qiskit Aer 0.16.4, Qiskit Machine Learning 0.8.4
-- **Dashboard Stack:** Streamlit 1.47+, Plotly 6.8+, Matplotlib 3.8+
+- **Dashboard Stack:** Streamlit >= 1.35.0, Plotly >= 5.20.0, Matplotlib >= 3.7.0
 
 ---
 

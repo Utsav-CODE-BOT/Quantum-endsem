@@ -130,3 +130,39 @@ class TestArchitectureEvaluator:
         assert res.noisy_val_metrics is not None
         assert 0.0 <= res.noisy_val_metrics.accuracy <= 1.0
         assert 0.0 <= res.fitness_breakdown.robustness_score <= 1.0
+
+    def test_fitness_calculator_missing_noise_zero_score(self) -> None:
+        """Verify missing or None noisy_accuracy receives 0.0 robustness, never rewarded."""
+        calc = FitnessCalculator()
+        robustness = calc.calculate_robustness(ideal_accuracy=0.95, noisy_accuracy=None)
+        assert robustness == 0.0
+
+    def test_evaluator_disqualifies_candidate_on_noise_failure(self, small_splits, monkeypatch) -> None:
+        """Verify that when noise evaluation fails, candidate is disqualified (success=False, fitness=-1.0)."""
+        from src.evaluation.noise_evaluator import NoiseEvaluator
+
+        def mock_failing_noise_evaluate(*args, **kwargs):
+            raise RuntimeError("Simulated Aer hardware failure")
+
+        monkeypatch.setattr(NoiseEvaluator, "evaluate", mock_failing_noise_evaluate)
+
+        X_train, y_train, X_val, y_val = small_splits
+        evaluator = ArchitectureEvaluator(
+            X_train=X_train,
+            y_train=y_train,
+            X_val=X_val,
+            y_val=y_val,
+            maxiter=5,
+            evaluate_noise=True,
+            enable_cache=False,
+        )
+        config = ArchitectureConfig(
+            num_qubits=4,
+            num_layers=1,
+            rotation_gates=("ry",),
+            entanglement_type="none",
+        )
+        res = evaluator.evaluate(config)
+        assert res.success is False
+        assert res.fitness == -1.0
+        assert "Simulated Aer hardware failure" in (res.error_message or "")

@@ -13,6 +13,10 @@
 
 This study investigated whether automated multi-objective evolutionary architecture search can discover Variational Quantum Classifier (VQC) architectures that reduce quantum circuit depth and parameter complexity while preserving high classification accuracy and robustness under realistic quantum hardware noise.
 
+The search engine optimizes the scalar multi-objective fitness:
+$$F(A) = 0.50 \cdot \text{Acc}_{\text{val}}(A) - 0.30 \cdot f_{\text{comp}}(A) + 0.20 \cdot f_{\text{rob}}(A)$$
+where $f_{\text{comp}}(A) = \frac{1}{2}\left(\frac{\text{depth}(A)}{50} + \frac{N_{2Q}(A)}{30}\right)$ penalizes circuit depth and two-qubit entangling gates, and $f_{\text{rob}}(A)$ actively scores accuracy retention under the canonical Medium Noise NISQ regime (1024 shots).
+
 Key empirical findings:
 1. **Resource Reduction:** The evolutionary search engine discovered an optimized candidate (`arch_b137878901`) that reduced quantum circuit depth by **58.3%** (from 12 to 5) and trainable parameter count by **33.3%** (from 24 to 16) compared to the standard 2-layer baseline.
 2. **Predictive Performance:** Despite dramatic circuit compression, the optimized VQC achieved **95.00% test accuracy** on Fashion-MNIST, exactly matching the 95.00% accuracy of the deeper baseline.

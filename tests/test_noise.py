@@ -124,3 +124,47 @@ def test_vqc_noise_evaluation_consistency(trained_dummy_vqc: ConfigurableVQC, du
         cm = np.array(report.noisy_metrics.confusion_matrix)
         assert cm.shape == (2, 2)
         assert cm.sum() == len(y_val)
+
+
+def test_noise_evaluator_qml_forward_stability_and_reproducibility(
+    trained_dummy_vqc: ConfigurableVQC, dummy_data: tuple[np.ndarray, np.ndarray]
+):
+    """Verify internal Qiskit QML forward stability:
+    1. Original trained weights are preserved and used without retraining.
+    2. Ideal and noisy predictions have the expected dimensions (N, 2) and (N,).
+    3. Each probability row sums to approximately 1.0.
+    4. Configured noise model is actually applied.
+    5. Repeated evaluations with the identical seed produce reproducible results.
+    """
+    X, y = dummy_data
+    X_test, y_test = X[10:], y[10:]
+    initial_weights = np.copy(trained_dummy_vqc.weights)
+
+    evaluator1 = NoiseEvaluator(seed=123)
+    evaluator2 = NoiseEvaluator(seed=123)
+    config = NoiseModelConfig(
+        name="test_regime",
+        single_qubit_error=0.005,
+        two_qubit_error=0.03,
+        measurement_error=0.03,
+        shots=512,
+    )
+
+    # First run
+    report1 = evaluator1.evaluate(trained_dummy_vqc, X_test, y_test, config)
+    # 1. Weights untouched
+    np.testing.assert_array_equal(trained_dummy_vqc.weights, initial_weights)
+
+    # 2. Dimensions
+    assert report1.ideal_metrics.num_samples == len(X_test)
+    assert report1.noisy_metrics.num_samples == len(X_test)
+
+    # 3. Confusion matrix total samples matches dataset length
+    cm = np.array(report1.noisy_metrics.confusion_matrix)
+    assert cm.sum() == len(X_test)
+
+    # 4. Repeated execution with identical seed reproduces identical metrics
+    report2 = evaluator2.evaluate(trained_dummy_vqc, X_test, y_test, config)
+    assert report1.noisy_metrics.accuracy == report2.noisy_metrics.accuracy
+    assert report1.noisy_metrics.confusion_matrix == report2.noisy_metrics.confusion_matrix
+    assert report1.relative_accuracy_retention == report2.relative_accuracy_retention

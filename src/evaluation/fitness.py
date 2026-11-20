@@ -83,9 +83,15 @@ class FitnessCalculator:
         ideal_accuracy: float,
         noisy_accuracy: float | None = None,
     ) -> float:
-        """Compute normalized noise robustness score in [0.0, 1.0]."""
+        """Compute normalized noise robustness score in [0.0, 1.0].
+
+        Args:
+            ideal_accuracy: Validation accuracy without hardware noise.
+            noisy_accuracy: Validation accuracy under simulated NISQ noise. If None (unmeasured
+                or failed), returns 0.0 to strictly prevent rewarding missing measurements.
+        """
         if noisy_accuracy is None:
-            return 1.0  # Default neutral robustness when noise evaluation is inactive
+            return 0.0  # Missing or failed measurements receive zero robustness; never rewarded
         drop = max(0.0, ideal_accuracy - noisy_accuracy)
         relative_drop = drop / max(ideal_accuracy, 1e-4)
         return float(max(0.0, min(1.0, 1.0 - relative_drop)))

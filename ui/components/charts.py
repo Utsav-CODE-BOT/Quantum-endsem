@@ -106,9 +106,9 @@ def create_pareto_scatter(
         )
 
     # Highlight Baseline
-    if baseline:
-        b_depth = baseline.get("circuit_depth", 12)
-        b_acc = baseline.get("val_accuracy", 0.983) * 100
+    if baseline and baseline.get("circuit_depth") is not None and baseline.get("val_accuracy") is not None:
+        b_depth = baseline["circuit_depth"]
+        b_acc = baseline["val_accuracy"] * 100
         fig.add_trace(
             go.Scatter(
                 x=[b_depth],
@@ -122,9 +122,11 @@ def create_pareto_scatter(
         )
 
     # Highlight Optimized
-    if optimized:
-        o_depth = optimized.get("circuit_metadata", {}).get("circuit_depth", 5)
-        o_acc = (optimized.get("val_metrics", {}).get("accuracy") or 0.916) * 100
+    opt_meta = optimized.get("circuit_metadata", {}) if optimized else {}
+    opt_val_metrics = optimized.get("val_metrics", {}) if optimized else {}
+    if optimized and opt_meta.get("circuit_depth") is not None and opt_val_metrics.get("accuracy") is not None:
+        o_depth = opt_meta["circuit_depth"]
+        o_acc = opt_val_metrics["accuracy"] * 100
         fig.add_trace(
             go.Scatter(
                 x=[o_depth],

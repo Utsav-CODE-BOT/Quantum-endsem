@@ -106,11 +106,11 @@ class ArchitectureEvaluator:
         self.enable_cache = enable_cache
 
         self.noise_config = noise_config or NoiseModelConfig(
-            name="val_nisq_noise",
+            name="Medium_Noise",
             single_qubit_error=0.001,
             two_qubit_error=0.01,
             measurement_error=0.015,
-            shots=512,
+            shots=1024,
         )
         self.evaluate_noise = evaluate_noise
 
@@ -194,19 +194,17 @@ class ArchitectureEvaluator:
             noisy_val_metrics = None
             noisy_val_accuracy = None
             if self.evaluate_noise:
-                try:
-                    noise_evaluator = NoiseEvaluator(seed=self.training_seed)
-                    noise_report = noise_evaluator.evaluate(
-                        vqc=vqc,
-                        X_test=self.X_val,
-                        y_test=self.y_val,
-                        noise_config=self.noise_config,
-                    )
-                    noisy_val_metrics = noise_report.noisy_metrics
-                    noisy_val_accuracy = noise_report.noisy_metrics.accuracy
-                except Exception as ex:
-                    logger.warning("Noise evaluation fallback for %s: %s", config.arch_id, ex)
-                    noisy_val_accuracy = None
+                noise_evaluator = NoiseEvaluator(seed=self.training_seed)
+                noise_report = noise_evaluator.evaluate(
+                    vqc=vqc,
+                    X_test=self.X_val,
+                    y_test=self.y_val,
+                    noise_config=self.noise_config,
+                )
+                noisy_val_metrics = noise_report.noisy_metrics
+                noisy_val_accuracy = noise_report.noisy_metrics.accuracy
+                if noisy_val_accuracy is None:
+                    raise RuntimeError(f"Noise evaluation produced None accuracy for {config.arch_id}")
 
             # 5. Compute multi-objective fitness with active noise robustness
             fitness_breakdown = self.fitness_calculator.evaluate(

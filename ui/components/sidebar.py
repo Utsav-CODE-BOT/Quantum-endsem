@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import qiskit
+import qiskit_aer
 import streamlit as st
+
+from src.utils.config_loader import get_project_root
 from ui.services.search_service import SearchService
 
 
 def render_sidebar() -> None:
-    """Render unified navigation and status sidebar."""
+    """Render unified navigation and evidence-based status sidebar."""
     with st.sidebar:
         st.markdown(
             """
@@ -23,12 +27,20 @@ def render_sidebar() -> None:
             unsafe_allow_html=True,
         )
 
-        # Backend Status Indicator
+        # Evidence-Based Engine & Data Status
         is_searching = SearchService.is_running()
+        data_file = get_project_root() / "data" / "processed" / "fashion_mnist_quantum_ready.npz"
+        data_ready = data_file.exists()
+
         if is_searching:
             status_html = '<span class="status-badge active">● SEARCH IN PROGRESS</span>'
+        elif data_ready:
+            status_html = '<span class="status-badge ready">● READY (Dataset Available)</span>'
         else:
-            status_html = '<span class="status-badge ready">● BACKEND READY</span>'
+            status_html = '<span class="status-badge standby">● STANDBY (Data Unprocessed)</span>'
+
+        qiskit_ver = getattr(qiskit, "__version__", "1.4.2")
+        aer_ver = getattr(qiskit_aer, "__version__", "0.16.4")
 
         st.markdown(
             f"""
@@ -36,7 +48,7 @@ def render_sidebar() -> None:
                 <div style="font-size: 0.72rem; color: #64748b; font-weight: 600; text-transform: uppercase;">System Engine</div>
                 <div style="margin-top: 0.35rem;">{status_html}</div>
                 <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.4rem; font-family: monospace;">
-                    Qiskit 1.4.2 · Aer 0.16.4
+                    Qiskit {qiskit_ver} · Aer {aer_ver}
                 </div>
             </div>
             """,

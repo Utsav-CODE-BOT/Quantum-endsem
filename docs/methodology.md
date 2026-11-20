@@ -63,7 +63,7 @@ where:
    with $\text{depth}_{\max} = 50$ and $\text{CX}_{\max} = 30$, where $N_{2Q}(A)$ denotes the count of two-qubit entangling gates ($CX, CZ$). This formulation directly penalizes two-qubit gates, which represent the dominant physical decoherence and gate-error bottleneck on NISQ hardware (typically $10\times$ higher error rate than single-qubit rotations).
 3. **Robustness Objective:** 
    $$f_{\text{rob}}(A) = \max\left(0, 1.0 - \frac{\text{Acc}_{\text{ideal}}(A) - \text{Acc}_{\text{noisy}}(A)}{\max(\text{Acc}_{\text{ideal}}(A), 10^{-4})}\right) \in [0, 1]$$
-   where $\text{Acc}_{\text{noisy}}(A)$ is actively evaluated on the validation dataset under a simulated NISQ noise model during candidate evaluation.
+   where $\text{Acc}_{\text{noisy}}(A)$ is actively evaluated on the validation dataset using the standardized Medium Noise NISQ regime ($p_{1q}=0.10\%, p_{2q}=1.00\%, p_{\text{meas}}=1.50\%, 1024\text{ shots}$) via Qiskit Aer's density matrix simulator. If noise simulation fails for a candidate, the candidate fails evaluation ($F(A) = -1.0, \text{success} = \text{False}$) and is disqualified from evolutionary selection, strictly preventing missing measurements from receiving artificial rewards.
 4. **Default Objective Weights:** $w_{\text{perf}} = 0.50$, $w_{\text{comp}} = 0.30$, $w_{\text{rob}} = 0.20$ ($w_{\text{perf}} + w_{\text{comp}} + w_{\text{rob}} = 1.0$).
 
 ---
@@ -89,7 +89,7 @@ where:
    The evolutionary optimizer converged on an architecture without two-qubit CX gates ($CX = 0$). In this binary classification problem (Class 0 vs Class 9 compressed to 4 orthogonal PCA features), separable product states parameterized by single-qubit rotations provide sufficient expressive capacity to draw a high-accuracy separating hyper-surface. Under our multi-objective fitness formulation, introducing CX gates incurs an immediate complexity penalty ($\frac{N_{2Q}}{30}$) and amplifies simulated depolarizing noise, without offering marginal validation accuracy gains. The algorithm appropriately avoids unneeded entangling overhead.
 
 2. **Depth Degradation vs Formal Barren Plateaus:**
-   The empirical degradation observed when moving from shallow/optimized VQCs to the Fixed Deep VQC (depth 27, 40 parameters) reflects an optimization bottleneck and overparameterization. While often associated with barren plateaus, formal proof of barren plateaus requires demonstrating exponential vanishing of gradient variance $\text{Var}_{\boldsymbol{\theta}}[\partial \mathcal{L}/\partial \theta_k] \in \mathcal{O}(2^{-n})$ across scaling system sizes $n$. On a fixed $n=4$ system, this depth degradation represents empirical landscape flattening.
+   The deeper VQC exhibited lower classification accuracy (92.00%) than the shallow (99.00%) and search-optimized (96.00%) architectures. This may reflect optimization difficulties or overparameterization. However, gradient variance was not measured, so the presence of barren plateaus cannot be established from these results. To claim barren plateau behavior rigorously, one must measure gradient variance $\text{Var}_{\boldsymbol{\theta}}[\partial \mathcal{L}/\partial \theta_k]$ across circuit depths, initializations, and system sizes $n$.
 
 3. **Dataset Scope (360 Samples):**
    The experimental protocol uses a controlled 360-sample partition (200 train, 60 validation, 100 test). The 100.00% accuracy of classical SVM baselines demonstrates linear separability on this specific 4-dimensional projection, and does not imply full 10-class Fashion-MNIST classification.

@@ -301,13 +301,18 @@ with col_chart4:
         for r in bench_records
         if r.get("circuit_depth") is not None
     ]
-    base_val_acc = baseline_data.get("validation_metrics", {}).get("accuracy", 0.983)
+    baseline_payload = None
+    if base_depth is not None and "validation_metrics" in baseline_data:
+        base_val_acc = baseline_data["validation_metrics"].get("accuracy")
+        if base_val_acc is not None:
+            baseline_payload = {
+                "circuit_depth": base_depth,
+                "val_accuracy": base_val_acc,
+            }
+
     fig_pareto = create_pareto_scatter(
         candidates=candidates,
-        baseline={
-            "circuit_depth": base_depth if base_depth is not None else 12,
-            "val_accuracy": base_val_acc if base_val_acc is not None else 0.983,
-        },
-        optimized=best_arch,
+        baseline=baseline_payload,
+        optimized=best_arch if best_arch else None,
     )
     st.plotly_chart(fig_pareto, use_container_width=True)
