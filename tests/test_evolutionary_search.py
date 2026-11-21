@@ -115,3 +115,93 @@ class TestEvolutionarySearchIntegration:
         gen2_candidates = result.generation_history[1].candidates
         gen2_ids = [c.arch_id for c in gen2_candidates]
         assert gen1_best.arch_id in gen2_ids
+
+    def test_failed_candidate_exclusion_and_single_survivor(self, monkeypatch) -> None:
+        """Verify that failed candidates are excluded from reproduction and single survivors are handled safely."""
+        eval_call_count = 0
+
+        def mock_evaluate(self, config):
+            nonlocal eval_call_count
+            eval_call_count += 1
+            meta = CircuitMetadata(4, 10, 20, 18, 2, {}, 4, 16)
+            report = ClassificationReport(0.85, 0.85, 0.85, 0.85, np.eye(2), 0.90, 60)
+            if eval_call_count % 3 == 0:
+                # 1 out of 3 succeeds
+                return CandidateEvaluationResult(
+                    arch_id=f"good_{eval_call_count}",
+                    config=config,
+                    circuit_metadata=meta,
+                    val_metrics=report,
+                    fitness=0.75,
+                    success=True,
+                )
+            else:
+                # 2 out of 3 fail
+                return CandidateEvaluationResult(
+                    arch_id=f"bad_{eval_call_count}",
+                    config=config,
+                    circuit_metadata=meta,
+                    val_metrics=report,
+                    fitness=-1.0,
+                    success=False,
+                    error_message="Simulation diverged",
+                )
+
+        monkeypatch.setattr(ArchitectureEvaluator, "evaluate", mock_evaluate)
+
+        evaluator = ArchitectureEvaluator(
+            X_train=np.zeros((4, 4)),
+            y_train=np.array([0, 0, 1, 1]),
+            X_val=np.zeros((2, 4)),
+            y_val=np.array([0, 1]),
+            maxiter=5,
+            enable_cache=False,
+        )
+
+        engine = EvolutionarySearchEngine(
+            evaluator=evaluator,
+            population_size=3,
+            max_generations=2,
+            elite_count=2,  # Elite count > number of successful candidates (1)
+            seed_manager=SeedManager(global_seed=42),
+        )
+
+        result = engine.run()
+        assert result.best_candidate.success is True
+        assert result.best_candidate.fitness == 0.75
+
+    def test_all_candidates_failing_raises_runtime_error(self, monkeypatch) -> None:
+        """Verify that when all candidates fail in generation 1, a clean RuntimeError is raised."""
+        def mock_failing_evaluate(self, config):
+            meta = CircuitMetadata(4, 10, 20, 18, 2, {}, 4, 16)
+            report = ClassificationReport(0.5, 0.5, 0.5, 0.5, np.eye(2), 0.5, 60)
+            return CandidateEvaluationResult(
+                arch_id="failing",
+                config=config,
+                circuit_metadata=meta,
+                val_metrics=report,
+                fitness=-1.0,
+                success=False,
+                error_message="Simulated total failure",
+            )
+
+        monkeypatch.setattr(ArchitectureEvaluator, "evaluate", mock_failing_evaluate)
+
+        evaluator = ArchitectureEvaluator(
+            X_train=np.zeros((4, 4)),
+            y_train=np.array([0, 0, 1, 1]),
+            X_val=np.zeros((2, 4)),
+            y_val=np.array([0, 1]),
+            maxiter=5,
+            enable_cache=False,
+        )
+
+        engine = EvolutionarySearchEngine(
+            evaluator=evaluator,
+            population_size=3,
+            max_generations=2,
+            seed_manager=SeedManager(global_seed=42),
+        )
+
+        with pytest.raises(RuntimeError, match="All candidate evaluations failed in generation 1"):
+            engine.run()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import threading
 import time
@@ -81,6 +82,7 @@ class SearchService:
     """Service orchestrating background evolutionary searches and saved history retrieval."""
 
     _lock: threading.Lock = threading.Lock()
+    _persistence_lock: threading.Lock = threading.Lock()
     _active_job: SearchJobState = SearchJobState()
     _worker_thread: threading.Thread | None = None
 
@@ -135,31 +137,75 @@ class SearchService:
         hist_path: Path | None = None,
         best_arch_path: Path | None = None,
     ) -> bool:
-        """Persist search history trajectory and conditionally update best architecture on disk."""
-        target_hist = hist_path or (get_project_root() / "experiments" / "results" / "search_history.json")
-        target_best = best_arch_path or (get_project_root() / "experiments" / "results" / "best_architecture.json")
-        target_hist.parent.mkdir(parents=True, exist_ok=True)
-        target_best.parent.mkdir(parents=True, exist_ok=True)
+        """Persist search history trajectory and conditionally update best architecture on disk atomically."""
+        with cls._persistence_lock:
+            target_hist = hist_path or (get_project_root() / "experiments" / "results" / "search_history.json")
+            target_best = best_arch_path or (get_project_root() / "experiments" / "results" / "best_architecture.json")
+            target_hist.parent.mkdir(parents=True, exist_ok=True)
+            target_best.parent.mkdir(parents=True, exist_ok=True)
 
-        search_result.save(target_hist)
+            # Atomic save of search history
+            search_result.save(target_hist)
 
-        should_update = True
-        if target_best.exists():
-            try:
-                with open(target_best, "r", encoding="utf-8") as f:
-                    curr = json.load(f)
-                if curr.get("fitness", -1.0) > overall_best.fitness:
-                    should_update = False
-                    logger.info("Existing best architecture on disk has higher fitness (%.4f > %.4f); not overwriting.", curr.get("fitness", 0), overall_best.fitness)
-            except Exception:
-                pass
-        if should_update:
-            arch_dict = overall_best.to_dict()
-            arch_dict["experiment_run_id"] = current_job.experiment_run_id
-            with open(target_best, "w", encoding="utf-8") as f:
-                json.dump(arch_dict, f, indent=2)
+            should_update = True
+            if target_best.exists():
+                try:
+                    with open(target_best, "r", encoding="utf-8") as f:
+                        curr = json.load(f)
 
-        return should_update
+                    # Required Correction C — Verify evaluation condition compatibility
+                    curr_weights = None
+                    if "fitness_breakdown" in curr and isinstance(curr["fitness_breakdown"], dict):
+                        curr_weights = (
+                            curr["fitness_breakdown"].get("w_performance"),
+                            curr["fitness_breakdown"].get("w_complexity"),
+                            curr["fitness_breakdown"].get("w_robustness"),
+                        )
+                    new_weights = None
+                    if overall_best.fitness_breakdown is not None:
+                        new_weights = (
+                            overall_best.fitness_breakdown.w_performance,
+                            overall_best.fitness_breakdown.w_complexity,
+                            overall_best.fitness_breakdown.w_robustness,
+                        )
+
+                    # If both provide fitness weights and they differ, they are not comparable
+                    if curr_weights is not None and new_weights is not None and curr_weights != new_weights:
+                        should_update = False
+                        logger.info(
+                            "Existing best architecture was evaluated under different objective weights (%s vs %s); skipping overwrite to preserve historical comparability.",
+                            curr_weights,
+                            new_weights,
+                        )
+                    elif curr.get("fitness", -1.0) > overall_best.fitness:
+                        should_update = False
+                        logger.info(
+                            "Existing best architecture on disk has higher fitness (%.4f > %.4f); not overwriting.",
+                            curr.get("fitness", 0),
+                            overall_best.fitness,
+                        )
+                except Exception as e:
+                    logger.warning("Could not read or parse existing best architecture for comparison: %s", e)
+
+            if should_update:
+                arch_dict = overall_best.to_dict()
+                arch_dict["experiment_run_id"] = current_job.experiment_run_id
+                temp_best = target_best.with_suffix(f".tmp.{os.getpid()}_{time.time_ns()}")
+                try:
+                    with open(temp_best, "w", encoding="utf-8") as f:
+                        json.dump(arch_dict, f, indent=2)
+                        f.flush()
+                        os.fsync(f.fileno())
+                    os.replace(temp_best, target_best)
+                except Exception:
+                    if temp_best.exists():
+                        try:
+                            temp_best.unlink()
+                        except OSError:
+                            pass
+                    raise
+
+            return should_update
 
     @classmethod
     def start_search(

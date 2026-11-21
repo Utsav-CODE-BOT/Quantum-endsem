@@ -119,13 +119,30 @@ class ArchitectureEvaluator:
         self.total_evaluations = 0
         self.cache_hits = 0
 
+        # Precompute deterministic dataset fingerprints once at initialization (zero loop overhead)
+        train_bytes = self.X_train.tobytes() + self.y_train.tobytes()
+        val_bytes = self.X_val.tobytes() + self.y_val.tobytes()
+        self._train_fingerprint = hashlib.sha256(train_bytes).hexdigest()[:16]
+        self._val_fingerprint = hashlib.sha256(val_bytes).hexdigest()[:16]
+
     def _generate_cache_key(self, config: ArchitectureConfig) -> str:
-        """Create cache key accounting for architecture and training conditions."""
-        key_str = (
-            f"{config.arch_id}:opt={self.optimizer_name}:iter={self.maxiter}:"
-            f"seed={self.training_seed}:N={len(self.X_train)}:noise={self.evaluate_noise}"
+        """Create robust cache key accounting for architecture, dataset fingerprints, and protocol parameters."""
+        noise_sig = "none"
+        if self.evaluate_noise:
+            noise_sig = (
+                f"{self.noise_config.name}_{self.noise_config.single_qubit_error}_"
+                f"{self.noise_config.two_qubit_error}_{self.noise_config.measurement_error}_{self.noise_config.shots}"
+            )
+        fit_sig = (
+            f"w={self.fitness_calculator.w_perf},{self.fitness_calculator.w_comp},{self.fitness_calculator.w_rob}:"
+            f"max={self.fitness_calculator.max_depth},{self.fitness_calculator.max_cx}"
         )
-        return hashlib.sha256(key_str.encode()).hexdigest()[:16]
+        key_str = (
+            f"arch={config.arch_id}:opt={self.optimizer_name}:iter={self.maxiter}:seed={self.training_seed}:"
+            f"train_fp={self._train_fingerprint}:val_fp={self._val_fingerprint}:"
+            f"noise={noise_sig}:fit={fit_sig}"
+        )
+        return hashlib.sha256(key_str.encode("utf-8")).hexdigest()[:16]
 
     def evaluate(self, config: ArchitectureConfig) -> CandidateEvaluationResult:
         """Train and evaluate a single architecture candidate on validation data.

@@ -389,6 +389,46 @@ class TestSearchService:
         assert reloaded["arch_id"] == "existing_high_performer"
         assert reloaded["fitness"] == 0.95
 
+    def test_incomparable_weights_cannot_overwrite_existing_best(self, tmp_path):
+        """Verify SearchService refuses to overwrite an existing best when objective weights differ."""
+        best_arch_file = tmp_path / "best_architecture.json"
+        existing_best = {
+            "arch_id": "historical_weight_profile",
+            "fitness": 0.50,
+            "fitness_breakdown": {
+                "w_performance": 0.80,
+                "w_complexity": 0.10,
+                "w_robustness": 0.10,
+            },
+        }
+        with open(best_arch_file, "w", encoding="utf-8") as f:
+            json.dump(existing_best, f, indent=2)
+
+        cfg = ArchitectureConfig(num_qubits=4, num_layers=1, rotation_gates=("ry",), entanglement_type="none")
+        meta = CircuitMetadata(4, 5, 10, 10, 0, {}, 4, 8)
+        report = ClassificationReport(0.85, 0.85, 0.85, 0.85, [[25, 5], [5, 25]], 0.85, 60)
+        fitness_bd = FitnessBreakdown(0.70, 0.85, 0.10, 0.90, 0.50, 0.30, 0.20)
+        new_cand = CandidateEvaluationResult("new_cand", cfg, meta, report, fitness=0.70, fitness_breakdown=fitness_bd, success=True)
+        gen_rec = GenerationRecord(1, new_cand, 0.70, 0.70, [new_cand], 1.0)
+        search_result = EvolutionarySearchResult(new_cand, [gen_rec], 1, 1, 0, 1.0, False, "done", "EXP-INCOMP")
+        job = SearchJobState()
+        job.experiment_run_id = "EXP-INCOMP"
+
+        hist_file = tmp_path / "search_history.json"
+        updated = SearchService.persist_search_artifacts(
+            search_result=search_result,
+            overall_best=new_cand,
+            current_job=job,
+            hist_path=hist_file,
+            best_arch_path=best_arch_file,
+        )
+
+        assert updated is False
+        with open(best_arch_file, "r", encoding="utf-8") as f:
+            reloaded = json.load(f)
+        assert reloaded["arch_id"] == "historical_weight_profile"
+        assert reloaded["fitness"] == 0.50
+
 
 class TestNoiseService:
     def test_get_canonical_tiers(self):

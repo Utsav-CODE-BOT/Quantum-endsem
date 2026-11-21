@@ -22,7 +22,7 @@ where $P$ is population size, $G$ is generations, $I$ is optimizer iterations, $
 Variational Quantum Algorithms are often discussed in the context of the **barren plateau phenomenon** (McClean et al., 2018; Cerezo et al., 2021):
 - For randomly initialized, deep, highly entangled circuits, theoretical gradient variance vanishes exponentially with qubit count:
   $$\text{Var}_{\boldsymbol{\theta}} \left[ \frac{\partial \mathcal{L}}{\partial \theta_k} \right] \in \mathcal{O}\left(\frac{1}{2^n}\right)$$
-- In our empirical benchmarks, the Fixed Deep VQC (depth 27, 40 parameters) exhibited lower test accuracy (92.00%) and required longer training time (51.74s) compared to the shallow (99.00%) and optimized (96.00%) architectures. The deeper VQC exhibited lower classification accuracy than the shallow and search-optimized architectures in this experiment. This may reflect optimization difficulties or overparameterization. However, gradient variance was not measured, so the presence of barren plateaus cannot be established from these results. To claim barren plateau behavior rigorously, one would need gradient variance measurements across circuit depths, initializations, and varying system sizes $n$.
+- In our empirical benchmarks, the Fixed Deep VQC (depth 27, 40 parameters) exhibited lower test accuracy (92.00%) and required longer training time (51.74s) compared to the shallow (99.00%) and search-optimized (90.00%) architectures. The deeper VQC exhibited lower classification accuracy than the shallow and search-optimized architectures in this experiment. This may reflect optimization difficulties or overparameterization. However, gradient variance was not measured, so the presence of barren plateaus cannot be established from these results. To claim barren plateau behavior rigorously, one would need gradient variance measurements across circuit depths, initializations, and varying system sizes $n$.
 
 ---
 
@@ -61,9 +61,22 @@ The empirical validation was conducted on a controlled 360-sample partition:
 
 ---
 
-## 6. Analysis of Low-Entanglement and Zero-CX Architectures
+## 6. Analysis of Low-Entanglement Architectures
 
-The evolutionary optimizer converged on compact architectures (`arch_4169ee9360` with 1 CX gate and `arch_b137878901` with 0 CX gates):
-- **Empirical Grounding of Expressive Sufficiency:** While PCA produces orthogonal component directions, this mathematical property does not, by itself, theoretically prove that a non-entangling or low-entangling quantum circuit has sufficient expressive capacity for classification. Rather, our justification is empirical, grounded in the measured performance of the discovered architectures: on this 360-sample 4-feature dataset, compact circuits with minimal entangling operations achieved 90.00% to 96.00% test accuracy while dramatically cutting exposure to two-qubit gate noise.
+The evolutionary optimizer converged on a compact architecture (`arch_4169ee9360` with 1 CX gate):
+- **Empirical Grounding of Expressive Sufficiency:** While PCA produces orthogonal component directions, this mathematical property does not, by itself, theoretically prove that a non-entangling or low-entangling quantum circuit has sufficient expressive capacity for classification. Rather, our justification is empirical, grounded in the measured performance of the discovered architecture: on this 360-sample 4-feature dataset, the compact circuit with minimal entangling operations achieved 90.00% test accuracy (88.33% validation accuracy) while dramatically cutting exposure to two-qubit gate noise.
 - **Multi-Objective Trade-off:** The fitness function explicitly penalizes two-qubit gate count ($N_{2Q}/30$) and noise degradation ($f_{\text{rob}}$). Introducing unnecessary CX gates increases depth and exposes the circuit to two-qubit gate noise without providing marginal classification gain on this specific task.
 - **Interpretation Scope:** The optimizer correctly behaved in a resource-aware manner by eliminating unneeded entangling overhead on this specific binary problem. Crucially, this task-specific result is an empirical observation and does not establish that entanglement is unnecessary in quantum machine learning generally or on more complex, higher-dimensional datasets.
+
+---
+
+## 7. Optimization Budget Lineage & Multi-Objective Scalarization
+
+1. **Multi-Objective Scalarization vs Explicit Pareto Frontiers:**
+   The optimization algorithm optimizes a scalarized weighted fitness function $F = 0.50 f_{\text{perf}} - 0.30 f_{\text{comp}} + 0.20 f_{\text{rob}}$. It does not run a non-dominated sorting multi-objective genetic algorithm (such as NSGA-II) to compute an exhaustive Pareto front of non-dominated solutions. Visualizations of depth vs. accuracy depict the empirical trade-off among evaluated candidates rather than a formal Pareto front.
+
+2. **Optimizer Iteration Budget Lineage:**
+   - In evolutionary architecture search, evaluating each candidate circuit in a population requires training parameterized gates. To keep total search runtime tractable, a budget of `maxiter=25` COBYLA iterations was allocated per candidate (`EXP-SEARCH-4169EE9360`, yielding 90.00% validation and 88.00% test accuracy for `arch_4169ee9360`).
+   - In the standardized head-to-head benchmark comparison (`EXP-BENCH-20261120`), all classical and quantum baseline models were evaluated under a uniform protocol of `maxiter=35` iterations, where `arch_4169ee9360` achieved 88.33% validation and 90.00% test accuracy, and the Fixed Standard Baseline achieved 98.33% validation and 95.00% test accuracy.
+   - In preliminary standalone exploratory evaluations, a budget of `maxiter=100` was run on the fixed baseline, yielding 100.00% validation and 96.00% test accuracy.
+   All reported metrics are traceable to these explicit optimizer budgets.

@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![Qiskit](https://img.shields.io/badge/Qiskit-1.4.2-613394.svg)](https://qiskit.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing%20(142%2F142)-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-passing%20(148%2F148)-brightgreen.svg)](tests/)
 
 An end-to-end, research-grade quantum machine learning framework developed in Python and Qiskit that automates the discovery, optimization, and evaluation of **Variational Quantum Classifiers (VQCs)**.
 
@@ -18,9 +18,9 @@ The framework resolves the multi-objective trade-off between **predictive accura
    where:
    $$f_{\text{perf}}(A) = \text{Acc}_{\text{val}}(A)$$
    $$f_{\text{comp}}(A) = \frac{1}{2}\left(\frac{\text{depth}(A)}{50} + \frac{N_{2Q}(A)}{30}\right)$$
-   $$f_{\text{rob}}(A) = \min\left(1, \max\left(0, \frac{\text{Acc}_{\text{noisy}}(A)}{\text{Acc}_{\text{val}}(A)}\right)\right)$$
-   assuming $\text{Acc}_{\text{val}}(A) > 0$ (guarded against division by zero). Here $f_{\text{rob}}(A)$ represents the exact fraction of ideal validation accuracy retained under simulated NISQ noise, mathematically clamped to $[0, 1]$ to prevent scores exceeding $1.0$. If noise evaluation fails, the candidate is disqualified ($F(A) = -1.0$). Default weights are $w_{\text{perf}} = 0.50$, $w_{\text{comp}} = 0.30$, and $w_{\text{rob}} = 0.20$.
-2. **Empirical Resource Reduction with High Noise Retention:** The search discovered a compact Pareto-efficient architecture (`arch_4169ee9360` with depth 10, 1 CX gate, 32 parameters) that cut two-qubit entangling gates by **83.3%** (from 6 down to 1 CX gate) while achieving **90.00% test accuracy** and **98.89% accuracy retention** under simulated High Noise NISQ conditions ($p_{1q}=0.5\%, p_{2q}=3\%, p_{\text{meas}}=3\%$).
+   $$f_{\text{rob}}(A) = \begin{cases} 0.0 & \text{if } \text{Acc}_{\text{val}}(A) \le 0 \text{ or } \text{Acc}_{\text{noisy}}(A) \le 0 \text{ or missing} \\ \min\left(1, \max\left(0, \frac{\text{Acc}_{\text{noisy}}(A)}{\text{Acc}_{\text{val}}(A)}\right)\right) & \text{otherwise} \end{cases}$$
+   Here $f_{\text{rob}}(A)$ represents the exact fraction of ideal validation accuracy retained under simulated NISQ noise, mathematically clamped to $[0, 1]$ to prevent distortion if noisy validation accuracy equals or exceeds ideal validation accuracy. If noise evaluation fails or validation accuracy is zero or non-finite, robustness evaluates strictly to $0.0$. Default weights are $w_{\text{perf}} = 0.50$, $w_{\text{comp}} = 0.30$, and $w_{\text{rob}} = 0.20$.
+2. **Empirical Resource Reduction with High Noise Retention:** The search discovered a compact scalarization-optimized architecture (`arch_4169ee9360` with depth 10, 1 CX gate, 32 parameters) that cut two-qubit entangling gates by **83.3%** (from 6 down to 1 CX gate) while achieving **90.00% test accuracy** and **98.89% accuracy retention** under simulated High Noise NISQ conditions ($p_{1q}=0.5\%, p_{2q}=3\%, p_{\text{meas}}=3\%$).
 3. **Rigorous Simulated NISQ Noise Benchmarking:** Paired evaluation across ideal statevector simulation and hardware-inspired NISQ noise tiers (low, medium, and high depolarizing + readout error, 1,024 shots) using Qiskit Aer's density matrix backend. *(Note: All experiments represent classical simulations of hardware-inspired noise models, not physical quantum device executions.)*
 4. **Strict Methodological Discipline:** Zero data leakage (PCA and scaling fitted strictly on training data), standard scikit-learn compatible interfaces, and honest scientific reporting without unsubstantiated "quantum advantage" claims.
 
@@ -173,7 +173,7 @@ quantum-architecture-optimizer/
 │   ├── training/                   # Training history and callbacks
 │   ├── utils/                      # Config, logging, seed, system monitor
 │   └── visualization/              # Publication plotting routines
-├── tests/                          # 142 comprehensive unit, integration, and UI service tests (pytest)
+├── tests/                          # 148 comprehensive unit, integration, and UI service tests (pytest)
 ├── pyproject.toml                  # Package configuration & test flags
 ├── requirements.txt                # Pinned dependency manifest
 └── README.md                       # Project master documentation
@@ -191,7 +191,7 @@ The project includes a comprehensive, dark-themed, publication-grade interactive
 ```
 
 ### Dashboard Research Modules:
-1. **Overview Dashboard (`1_Overview.py`):** Executive summary, multi-objective Pareto front, convergence metrics, and NISQ noise degradation curves.
+1. **Overview Dashboard (`1_Overview.py`):** Executive summary, multi-objective trade-off analysis, convergence metrics, and NISQ noise degradation curves.
 2. **Dataset Explorer (`2_Dataset_Explorer.py`):** Interactive Fashion-MNIST browser with step-by-step pipeline transformations ($28\times 28 \to 784 \to 4 \to [0,\pi]$) and PCA explained variance scree plots (strictly adhering to zero data leakage).
 3. **Quantum Circuit Lab (`3_Quantum_Circuit_Lab.py`):** Real-time interactive VQC builder with custom rotation gates and entanglement topologies, live Qiskit compilation, and high-res 200 DPI PNG export.
 4. **Architecture Search (`4_Architecture_Search.py`):** Multi-objective evolutionary search engine with asynchronous background thread execution and live telemetry updates.

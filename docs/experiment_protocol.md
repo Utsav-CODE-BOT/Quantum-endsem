@@ -72,3 +72,24 @@ All stochastic operations are strictly governed by explicit pseudo-random seeds:
 - Evolutionary genetic operators (selection, crossover, mutation): `seed = 42`
 
 All hardware specifications, OS parameters, package versions, and timestamps are logged systematically in `experiments/logs/`.
+
+---
+
+## 5. Optimization Budget Specification & Multi-Objective Scalarization
+
+### 5.1 Multi-Objective Scalarization
+The optimization engine uses a normalized weighted-sum scalarization objective:
+$$F(A) = w_{\text{perf}} \cdot f_{\text{perf}}(A) - w_{\text{comp}} \cdot f_{\text{comp}}(A) + w_{\text{rob}} \cdot f_{\text{rob}}(A)$$
+with weights $w_{\text{perf}} = 0.50$, $w_{\text{comp}} = 0.30$, and $w_{\text{rob}} = 0.20$.
+This formulation guides the single-objective evolutionary search over multiple competing physical and statistical criteria. It does not employ Pareto-dominance sorting algorithms (such as NSGA-II); visual trade-off curves illustrate empirical distributions of evaluated candidates across complexity and accuracy dimensions.
+
+### 5.2 Optimizer Iteration Budgets
+Classical COBYLA training iteration budgets are assigned systematically to balance search exploration against computational feasibility:
+1. **Evolutionary Search Discovery Budget (`maxiter = 25`):**
+   - Applied during candidate evaluation in the genetic algorithm.
+   - Run ID: `EXP-SEARCH-4169EE9360` (Discovered `arch_4169ee9360`: 90.00% validation accuracy, 88.00% test accuracy, 16.95s training time).
+2. **Standardized Comparative Benchmark Budget (`maxiter = 35`):**
+   - Applied uniformly to all fixed classical and quantum architectures in `experiments/results/benchmark_comparison.json`.
+   - Run ID: `EXP-BENCH-20261120` (`arch_4169ee9360`: 88.33% validation accuracy, 90.00% test accuracy; Baseline VQC: 98.33% validation accuracy, 95.00% test accuracy).
+3. **Exploratory Baseline Budget (`maxiter = 100`):**
+   - Evaluated during preliminary baseline convergence profiling (Baseline VQC: 100.00% validation accuracy, 96.00% test accuracy).

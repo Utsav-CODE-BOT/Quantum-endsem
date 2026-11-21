@@ -251,3 +251,44 @@ def test_noise_evaluator_trained_weight_preservation_and_noisy_probability_outpu
     assert cm.shape == (2, 2)
     assert cm.sum() == len(X_test)
     assert np.all(cm >= 0)
+
+
+def test_noise_evaluator_invalid_probability_distributions_raise_error(
+    dummy_data, trained_dummy_vqc, monkeypatch
+) -> None:
+    """Verify that zero-probability rows, NaNs, and negative probabilities raise explicit ValueErrors."""
+    X, y = dummy_data
+    X_test, y_test = X[:4], y[:4]
+    evaluator = NoiseEvaluator(seed=42)
+    noise_config = NoiseModelConfig(
+        name="test_err",
+        single_qubit_error=0.01,
+        two_qubit_error=0.02,
+        measurement_error=0.02,
+    )
+
+    from qiskit_machine_learning.neural_networks import SamplerQNN
+
+    # 1. Zero probability row
+    def mock_forward_zero(self, X_input, weights):
+        return np.array([[0.0, 0.0], [0.5, 0.5], [0.3, 0.7], [0.8, 0.2]])
+
+    monkeypatch.setattr(SamplerQNN, "forward", mock_forward_zero)
+    with pytest.raises(ValueError, match="zero total probability"):
+        evaluator.evaluate(trained_dummy_vqc, X_test, y_test, noise_config)
+
+    # 2. NaN probability
+    def mock_forward_nan(self, X_input, weights):
+        return np.array([[float("nan"), 0.5], [0.5, 0.5], [0.3, 0.7], [0.8, 0.2]])
+
+    monkeypatch.setattr(SamplerQNN, "forward", mock_forward_nan)
+    with pytest.raises(ValueError, match="non-finite probabilities"):
+        evaluator.evaluate(trained_dummy_vqc, X_test, y_test, noise_config)
+
+    # 3. Negative probability
+    def mock_forward_neg(self, X_input, weights):
+        return np.array([[-0.2, 0.5], [0.5, 0.5], [0.3, 0.7], [0.8, 0.2]])
+
+    monkeypatch.setattr(SamplerQNN, "forward", mock_forward_neg)
+    with pytest.raises(ValueError, match="negative probabilities"):
+        evaluator.evaluate(trained_dummy_vqc, X_test, y_test, noise_config)

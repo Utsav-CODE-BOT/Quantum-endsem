@@ -104,6 +104,18 @@ class TestConfigurableVQC:
         assert "metadata" in data
         assert "training_history" in data
 
+        # Test direct model reconstruction without retraining via ConfigurableVQC.load
+        loaded_model = ConfigurableVQC.load(ckpt_path)
+        assert loaded_model.is_fitted is True
+        np.testing.assert_allclose(loaded_model.weights, vqc.weights, atol=1e-5)
+
+        loaded_preds = loaded_model.predict(X)
+        assert loaded_preds.shape == (len(X),)
+        np.testing.assert_array_equal(loaded_preds, vqc.predict(X))
+
+        loaded_prob = loaded_model.predict_proba(X)
+        np.testing.assert_allclose(loaded_prob, vqc.predict_proba(X), atol=1e-5)
+
     def test_metrics_integration(self, synthetic_data) -> None:
         X, y = synthetic_data
         vqc = ConfigurableVQC(

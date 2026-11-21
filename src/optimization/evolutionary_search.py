@@ -14,6 +14,8 @@ Custom Python implementation:
 from __future__ import annotations
 
 import json
+import math
+import os
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -86,12 +88,24 @@ class EvolutionarySearchResult:
         }
 
     def save(self, path: str | Path) -> None:
-        """Save complete search history to JSON."""
+        """Save complete search history to JSON atomically."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2)
-        logger.info("Saved search history to '%s'", path)
+        temp_path = path.with_suffix(f".tmp.{os.getpid()}_{time.time_ns()}")
+        try:
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(self.to_dict(), f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(temp_path, path)
+        except Exception:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except OSError:
+                    pass
+            raise
+        logger.info("Saved search history atomically to '%s'", path)
 
 
 class EvolutionarySearchEngine:
@@ -184,10 +198,22 @@ class EvolutionarySearchEngine:
                     res.circuit_metadata.total_gates,
                 )
 
-            # Sort population descending by fitness
-            evaluated_population.sort(key=lambda c: c.fitness, reverse=True)
-            gen_best = evaluated_population[0]
-            avg_fitness = float(np.mean([c.fitness for c in evaluated_population]))
+            # Filter successful candidates with finite fitness for ranking and reproduction
+            successful_pop = [
+                c for c in evaluated_population
+                if c.success and math.isfinite(c.fitness)
+            ]
+            if not successful_pop:
+                logger.error("All candidate evaluations failed in generation %d.", gen + 1)
+                if overall_best is None:
+                    raise RuntimeError(f"All candidate evaluations failed in generation {gen + 1}; cannot continue search.")
+                logger.warning("Generation %d had no successful candidates; terminating search with existing best.", gen + 1)
+                break
+
+            # Sort successful candidates descending by fitness
+            successful_pop.sort(key=lambda c: c.fitness, reverse=True)
+            gen_best = successful_pop[0]
+            avg_fitness = float(np.mean([c.fitness for c in successful_pop]))
             gen_time = time.perf_counter() - gen_start
 
             gen_record = GenerationRecord(
@@ -230,15 +256,16 @@ class EvolutionarySearchEngine:
             if gen == self.max_generations - 1:
                 break
 
-            # 3. Elitism: preserve top elite candidates unchanged
+            # 3. Elitism: preserve top elite candidates unchanged from successful candidates
+            actual_elites = min(self.elite_count, len(successful_pop))
             next_configs: list[ArchitectureConfig] = [
-                evaluated_population[e].config for e in range(self.elite_count)
+                successful_pop[e].config for e in range(actual_elites)
             ]
 
-            # 4. Selection, Crossover, and Mutation for offspring
+            # 4. Selection, Crossover, and Mutation for offspring from valid parents only
             while len(next_configs) < self.pop_size:
-                p1 = self.selector.select_parent(evaluated_population, self.rng)
-                p2 = self.selector.select_parent(evaluated_population, self.rng)
+                p1 = self.selector.select_parent(successful_pop, self.rng)
+                p2 = self.selector.select_parent(successful_pop, self.rng)
 
                 child1, child2 = self.crossover_op.crossover(p1.config, p2.config, self.rng)
                 child1 = self.mutation_op.mutate(child1, self.rng)

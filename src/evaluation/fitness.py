@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any
 
@@ -74,8 +75,14 @@ class FitnessCalculator:
 
     def calculate_complexity(self, metadata: CircuitMetadata) -> float:
         """Compute normalized circuit complexity score in [0.0, 1.0]."""
-        norm_depth = min(metadata.circuit_depth / self.max_depth, 1.0)
-        norm_cx = min(metadata.two_qubit_gates / self.max_cx, 1.0)
+        depth = metadata.circuit_depth
+        cx = metadata.two_qubit_gates
+        if not math.isfinite(depth) or not math.isfinite(cx):
+            return 1.0
+        depth_clamped = max(0.0, float(depth))
+        cx_clamped = max(0.0, float(cx))
+        norm_depth = min(depth_clamped / self.max_depth, 1.0)
+        norm_cx = min(cx_clamped / self.max_cx, 1.0)
         return float(0.5 * norm_depth + 0.5 * norm_cx)
 
     def calculate_robustness(
@@ -86,7 +93,11 @@ class FitnessCalculator:
         """Compute normalized noise robustness score in [0.0, 1.0].
 
         Defined as:
-            R(A) = min(1.0, max(0.0, Acc_noisy(A) / max(Acc_val(A), 1e-4)))
+            R(A) = min(1.0, max(0.0, Acc_noisy(A) / Acc_val(A))) for Acc_val(A) > 0.
+            R(A) = 0.0 when Acc_val(A) <= 0.0, noisy_accuracy is None, or values are non-finite.
+
+        When ideal validation accuracy is zero or non-positive, the candidate has zero baseline
+        classification capacity, so retention under noise is zero by definition.
 
         Args:
             ideal_accuracy: Validation accuracy without hardware noise.
@@ -94,9 +105,15 @@ class FitnessCalculator:
                 or failed), returns 0.0 to strictly prevent rewarding missing measurements.
         """
         if noisy_accuracy is None:
-            return 0.0  # Missing or failed measurements receive zero robustness; never rewarded
-        denom = max(ideal_accuracy, 1e-4)
-        ratio = noisy_accuracy / denom
+            return 0.0
+        if not math.isfinite(ideal_accuracy) or not math.isfinite(noisy_accuracy):
+            return 0.0
+        if ideal_accuracy <= 0.0 or noisy_accuracy <= 0.0:
+            return 0.0
+
+        ideal_clamped = min(1.0, float(ideal_accuracy))
+        noisy_clamped = min(1.0, float(noisy_accuracy))
+        ratio = noisy_clamped / ideal_clamped
         return float(min(1.0, max(0.0, ratio)))
 
     def evaluate(
@@ -115,7 +132,10 @@ class FitnessCalculator:
         Returns:
             FitnessBreakdown containing scalar fitness and individual objective terms.
         """
-        perf = float(max(0.0, min(1.0, val_accuracy)))
+        if not math.isfinite(val_accuracy):
+            perf = 0.0
+        else:
+            perf = float(max(0.0, min(1.0, val_accuracy)))
         comp = self.calculate_complexity(metadata)
         rob = self.calculate_robustness(perf, noisy_accuracy)
 

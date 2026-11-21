@@ -108,6 +108,44 @@ class TestArchitectureEvaluator:
         assert evaluator.cache_hits == 1
         assert res1.fitness == res2.fitness
 
+    def test_cache_key_discrimination_across_conditions(self, small_splits) -> None:
+        """Verify cache keys correctly distinguish dataset fingerprints, budgets, noise, and architectures."""
+        X_train, y_train, X_val, y_val = small_splits
+        cfg1 = ArchitectureConfig(4, 1, ("ry",), "linear")
+        cfg2 = ArchitectureConfig(4, 2, ("rx",), "circular")
+
+        base_eval = ArchitectureEvaluator(X_train, y_train, X_val, y_val, maxiter=10)
+        key_base = base_eval._generate_cache_key(cfg1)
+
+        # 1. Same conditions produce identical key
+        key_same = base_eval._generate_cache_key(cfg1)
+        assert key_base == key_same
+
+        # 2. Different architecture configuration produces different key
+        key_diff_arch = base_eval._generate_cache_key(cfg2)
+        assert key_base != key_diff_arch
+
+        # 3. Different training data produces different key
+        eval_diff_train = ArchitectureEvaluator(X_train + 0.1, y_train, X_val, y_val, maxiter=10)
+        assert key_base != eval_diff_train._generate_cache_key(cfg1)
+
+        # 4. Different validation data produces different key
+        eval_diff_val = ArchitectureEvaluator(X_train, y_train, X_val + 0.1, y_val, maxiter=10)
+        assert key_base != eval_diff_val._generate_cache_key(cfg1)
+
+        # 5. Different optimization budget produces different key
+        eval_diff_iter = ArchitectureEvaluator(X_train, y_train, X_val, y_val, maxiter=25)
+        assert key_base != eval_diff_iter._generate_cache_key(cfg1)
+
+        # 6. Different noise evaluation setting produces different key
+        eval_no_noise = ArchitectureEvaluator(X_train, y_train, X_val, y_val, maxiter=10, evaluate_noise=False)
+        assert key_base != eval_no_noise._generate_cache_key(cfg1)
+
+        # 7. Different fitness objective weights produce different key
+        diff_fitness = FitnessCalculator(w_performance=0.8, w_complexity=0.1, w_robustness=0.1)
+        eval_diff_fit = ArchitectureEvaluator(X_train, y_train, X_val, y_val, fitness_calculator=diff_fitness, maxiter=10)
+        assert key_base != eval_diff_fit._generate_cache_key(cfg1)
+
     def test_evaluator_active_noise_robustness(self, small_splits) -> None:
         X_train, y_train, X_val, y_val = small_splits
         evaluator = ArchitectureEvaluator(
@@ -140,16 +178,48 @@ class TestArchitectureEvaluator:
     def test_robustness_bounded_between_zero_and_one(self) -> None:
         """Verify R(A) = min(1.0, max(0.0, Acc_noisy / Acc_val)) upper and lower safeguards."""
         calc = FitnessCalculator()
-        # Normal retention
+        # Explicit Phase 1 specification table
+        assert calc.calculate_robustness(ideal_accuracy=0.90, noisy_accuracy=0.90) == 1.0
         assert calc.calculate_robustness(ideal_accuracy=0.90, noisy_accuracy=0.81) == pytest.approx(0.90)
-        # Safeguard: Noisy exceeds ideal -> clamped to 1.0 (never exceeds 1.0)
-        assert calc.calculate_robustness(ideal_accuracy=0.80, noisy_accuracy=0.85) == 1.0
-        # Safeguard: Noisy zero -> clamped to 0.0
+        assert calc.calculate_robustness(ideal_accuracy=0.90, noisy_accuracy=0.95) == 1.0
+        assert calc.calculate_robustness(ideal_accuracy=0.00, noisy_accuracy=0.00) == 0.0
+        assert calc.calculate_robustness(ideal_accuracy=0.00, noisy_accuracy=0.01) == 0.0
+        assert calc.calculate_robustness(ideal_accuracy=0.90, noisy_accuracy=None) == 0.0
+
+        # Additional edge-case safeguards
         assert calc.calculate_robustness(ideal_accuracy=0.80, noisy_accuracy=0.0) == 0.0
-        # Safeguard: Ideal zero handled without division by zero
-        assert calc.calculate_robustness(ideal_accuracy=0.0, noisy_accuracy=0.0) == 0.0
-        # Missing measurement returns 0.0
-        assert calc.calculate_robustness(ideal_accuracy=0.80, noisy_accuracy=None) == 0.0
+        assert calc.calculate_robustness(ideal_accuracy=0.0, noisy_accuracy=0.50) == 0.0
+        assert calc.calculate_robustness(ideal_accuracy=-0.5, noisy_accuracy=0.5) == 0.0
+        assert calc.calculate_robustness(ideal_accuracy=0.5, noisy_accuracy=-0.2) == 0.0
+        assert calc.calculate_robustness(ideal_accuracy=float("nan"), noisy_accuracy=0.5) == 0.0
+        assert calc.calculate_robustness(ideal_accuracy=0.5, noisy_accuracy=float("inf")) == 0.0
+
+    def test_complexity_edge_cases_and_safeguards(self) -> None:
+        """Verify complexity formula bounds, edge cases, and normalization clamps."""
+        calc = FitnessCalculator(max_depth=50, max_cx_gates=30)
+        # Zero gates and zero depth -> complexity 0.0
+        zero_meta = CircuitMetadata(
+            num_qubits=4, circuit_depth=0, total_gates=0,
+            single_qubit_gates=0, two_qubit_gates=0, gate_distribution={},
+            num_input_features=4, num_trainable_parameters=0,
+        )
+        assert calc.calculate_complexity(zero_meta) == 0.0
+
+        # Normalization upper limit clamps to 1.0
+        huge_meta = CircuitMetadata(
+            num_qubits=4, circuit_depth=100, total_gates=200,
+            single_qubit_gates=100, two_qubit_gates=100, gate_distribution={},
+            num_input_features=4, num_trainable_parameters=200,
+        )
+        assert calc.calculate_complexity(huge_meta) == 1.0
+
+        # Non-finite values return 1.0 penalty
+        nan_meta = CircuitMetadata(
+            num_qubits=4, circuit_depth=float("nan"), total_gates=10,
+            single_qubit_gates=5, two_qubit_gates=5, gate_distribution={},
+            num_input_features=4, num_trainable_parameters=10,
+        )
+        assert calc.calculate_complexity(nan_meta) == 1.0
 
     def test_evaluator_disqualifies_candidate_on_noise_failure(self, small_splits, monkeypatch) -> None:
         """Verify that when noise evaluation fails, candidate is disqualified (success=False, fitness=-1.0)."""

@@ -231,7 +231,10 @@ class ConfigurableVQC:
             raise RuntimeError("Model is not fitted yet.")
         X_arr = np.asarray(X, dtype=float)
         preds = self.vqc_internal.predict(X_arr)
-        return np.asarray(preds, dtype=int)
+        preds_arr = np.asarray(preds, dtype=int)
+        if preds_arr.ndim > 1 and preds_arr.shape[1] > 1:
+            return np.argmax(preds_arr, axis=1)
+        return preds_arr.ravel()
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Predict class probabilities for samples in X.
@@ -296,3 +299,38 @@ class ConfigurableVQC:
         """Load model checkpoint data from disk."""
         with open(path, "rb") as f:
             return pickle.load(f)
+
+    @classmethod
+    def load(cls, path: str | Path) -> "ConfigurableVQC":
+        """Load and reconstruct a trained VQC model from disk without retraining."""
+        checkpoint = cls.load_checkpoint(path)
+        model = cls(
+            num_qubits=checkpoint["num_qubits"],
+            num_layers=checkpoint["num_layers"],
+            rotation_gates=checkpoint["rotation_gates"],
+            entanglement_type=checkpoint["entanglement_type"],
+            entanglement_freq=checkpoint["entanglement_freq"],
+            feature_rotation=checkpoint["feature_rotation"],
+            measurement_strategy=checkpoint["measurement_strategy"],
+            optimizer_name=checkpoint.get("optimizer_name", "cobyla"),
+            maxiter=checkpoint.get("maxiter", 35),
+            random_seed=checkpoint.get("random_seed", 42),
+        )
+        if checkpoint.get("weights") is not None:
+            from qiskit_algorithms.optimizers import OptimizerResult
+
+            model.vqc_internal = VQC(
+                num_qubits=model.num_qubits,
+                feature_map=model.feature_map.circuit,
+                ansatz=model.ansatz.circuit,
+                loss="cross_entropy",
+                optimizer=model.optimizer,
+                sampler=model.sampler,
+                interpret=model.interpret_func,
+                output_shape=2,
+            )
+            res = OptimizerResult()
+            res.x = np.array(checkpoint["weights"], dtype=float)
+            model.vqc_internal._fit_result = res
+            model.is_fitted = True
+        return model

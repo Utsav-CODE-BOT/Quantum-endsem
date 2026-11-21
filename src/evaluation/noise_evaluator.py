@@ -180,12 +180,27 @@ class NoiseEvaluator:
         # Call internal predict:
         # In QML VQC, predict calls self._neural_network.forward(X, weights)
         forward_probs = noisy_vqc_internal.neural_network.forward(X_arr, vqc.weights)
-        # Normalize forward probabilities and compute predictions
+        # Validate and safely normalize forward probabilities
         noisy_probs = np.asarray(forward_probs, dtype=float)
-        # Ensure row sums = 1
+
+        if not np.all(np.isfinite(noisy_probs)):
+            raise ValueError("Noisy forward simulation returned non-finite probabilities (contains NaN or Inf).")
+
+        if np.any(noisy_probs < -1e-6):
+            raise ValueError(f"Noisy forward simulation produced negative probabilities: min={noisy_probs.min()}")
+
+        # Cleanly clip minor floating point precision artifacts
+        noisy_probs = np.clip(noisy_probs, 0.0, 1.0)
         row_sums = noisy_probs.sum(axis=1, keepdims=True)
-        row_sums[row_sums == 0] = 1.0
+
+        if np.any(row_sums <= 1e-9):
+            raise ValueError("One or more sample rows have zero total probability under noise simulation.")
+
         noisy_probs = noisy_probs / row_sums
+
+        if not np.allclose(noisy_probs.sum(axis=1), 1.0, atol=1e-5):
+            raise ValueError("Failed to normalize noisy probabilities to a valid probability distribution.")
+
         noisy_preds = np.argmax(noisy_probs, axis=1)
 
         noisy_metrics = compute_classification_metrics(y_arr, noisy_preds, noisy_probs)
